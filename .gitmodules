@@ -1,0 +1,3 @@
+[submodule "pytorch-colors"]
+	path = pytorch-colors
+	url = https://github.com/jorge-pessoa/pytorch-colors
