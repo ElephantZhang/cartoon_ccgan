@@ -20,7 +20,7 @@ sw = SummaryWriter("cartoon_CcGAN_surface_texture")
 
 ''' Settings '''
 args = parse_opts()
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+device = "cuda"
 
 # some parameters in opts
 niters = args.niters_gan
@@ -46,14 +46,19 @@ preprocess = transforms.Compose([
         std=[0.5, 0.5, 0.5]),
 ])
 
-def pretrain_gen(netG, opt_gen, photos, l1_loss, VGG):
-    for epoch in range(0, config.NUM_PRETRAIN_EPOCHS):
+def pretrain_gen(netG, net_y2h_surface, net_y2h_texture, opt_gen, photos, l1_loss, VGG):
+    for epoch in range(0, 10):
         z = photos[np.random.choice(photos.shape[0], batch_size_max)]
         tmp = []
         for idx in range(0, batch_size_max):
             tmp.append(preprocess(z[idx]).unsqueeze(0))
         z = torch.cat(tmp, dim=0).to(device)
-        batch_fake_images = netG(z, torch.rand(batch_size_max), torch.rand(batch_size_max))
+
+        batch_fake_images = netG(
+            z, 
+            net_y2h_surface(torch.rand(batch_size_max).to(config.DEVICE)), 
+            net_y2h_texture(torch.rand(batch_size_max).to(config.DEVICE))
+        )
         photos_vgg = VGG(z)
         fake_vgg = VGG(batch_fake_images)
         reconstruction_loss = l1_loss(photos_vgg, fake_vgg) * 255
@@ -64,7 +69,7 @@ def pretrain_gen(netG, opt_gen, photos, l1_loss, VGG):
         if((epoch+1)%100 == 0):
             print('[%d/%d] - Recon loss: %.8f' % ((epoch + 1), config.NUM_PRETRAIN_EPOCHS, reconstruction_loss.item()))
 
-def train_CcGAN(kernel_sigma, kappa, photos, train_images, train_labels, gen, disc_surface, disc_texture, VGG, save_images_folder, save_models_folder = None, clip_label=False):
+def train_CcGAN(kernel_sigma, kappa, photos, train_images, train_labels, gen, disc_surface, disc_texture, net_y2h_surface, net_y2h_texture, VGG, save_images_folder, save_models_folder = None, clip_label=False):
     '''
     Note that train_images are not normalized to [-1,1]
     '''
@@ -92,14 +97,15 @@ def train_CcGAN(kernel_sigma, kappa, photos, train_images, train_labels, gen, di
         print("load discriminator from", save_file)
         
         torch.set_rng_state(checkpoint['rng_state'])
-    elif save_models_folder + "/CcGAN_pretrained_gen.pth" is not None:
+    
+    if False:
         save_file = save_models_folder + "/CcGAN_pretrained_gen.pth"
         checkpoint = torch.load(save_file)
         gen.load_state_dict(checkpoint['gen_state_dict'])
         optimizerG.load_state_dict(checkpoint['optimizerG_state_dict'])
         print("load generator from", save_models_folder + "/CcGAN_pretrained_gen.pth")
     else:
-        pretrain_gen(gen, optimizerG, photos, l1_loss, VGG)
+        pretrain_gen(gen, net_y2h_surface, net_y2h_texture, optimizerG, photos, l1_loss, VGG)
         save_file = save_models_folder + "/CcGAN_pretrained_gen.pth"
         os.makedirs(os.path.dirname(save_file), exist_ok=True)
         torch.save({
@@ -245,7 +251,7 @@ def train_CcGAN(kernel_sigma, kappa, photos, train_images, train_labels, gen, di
         for idx in range(0, batch_size_max):
             tmp.append(preprocess(z[idx]).unsqueeze(0))
         z = torch.cat(tmp, dim=0).to(device)
-        batch_fake_images = gen(z, batch_fake_surface_labels, batch_fake_texture_labels)
+        batch_fake_images = gen(z, net_y2h_surface(batch_fake_surface_labels), net_y2h_texture(batch_fake_texture_labels))
 
         ## target labels on gpu
         batch_target_surface_labels = torch.from_numpy(batch_target_surface_labels).type(torch.float).to(device)
@@ -264,16 +270,34 @@ def train_CcGAN(kernel_sigma, kappa, photos, train_images, train_labels, gen, di
         #end if threshold type
 
         # forward pass
-        dis_real_surface = disc_surface(extract_surface.process(batch_real_surface_images, batch_real_surface_images, r=5, eps=2e-1), batch_target_surface_labels)
-        dis_fake_surface = disc_surface(extract_surface.process(batch_fake_images, batch_fake_images, r=5, eps=2e-1).detach(), batch_target_surface_labels)
+        dis_real_surface = disc_surface(
+            extract_surface.process(
+                batch_real_surface_images, 
+                batch_real_surface_images, r=5, eps=2e-1
+            ), 
+            net_y2h_surface(batch_target_surface_labels)
+        )
+        dis_fake_surface = disc_surface(
+            extract_surface.process(
+                batch_fake_images, 
+                batch_fake_images, r=5, eps=2e-1
+            ).detach(), 
+            net_y2h_surface(batch_target_surface_labels)
+        )
 
         tmp, =  extract_texture.process(batch_real_texture_images)
-        dis_real_texture = disc_texture(tmp, batch_target_texture_labels)
+        dis_real_texture = disc_texture(tmp, net_y2h_texture(batch_target_texture_labels))
         tmp, = extract_texture.process(batch_fake_images)
-        dis_fake_texture = disc_texture(tmp.detach(), batch_target_texture_labels)
+        dis_fake_texture = disc_texture(tmp.detach(), net_y2h_texture(batch_target_texture_labels))
 
-        d_surface_loss = - torch.mean(real_surface_weights.view(-1) * torch.log(dis_real_surface.view(-1)+1e-20)) - torch.mean(fake_surface_weights.view(-1) * torch.log(1 - dis_fake_surface.view(-1)+1e-20))
-        d_texture_loss = - torch.mean(real_texture_weights.view(-1) * torch.log(dis_real_texture.view(-1)+1e-20)) - torch.mean(fake_texture_weights.view(-1) * torch.log(1 - dis_fake_texture.view(-1)+1e-20))
+        # use hinge loss type
+        d_loss_real_surface = torch.nn.ReLU()(1.0 - dis_real_surface)
+        d_loss_fake_surface = torch.nn.ReLU()(1.0 - dis_fake_surface)
+        d_loss_real_texture = torch.nn.ReLU()(1.0 - dis_real_texture)
+        d_loss_fake_texture = torch.nn.ReLU()(1.0 - dis_fake_texture)
+
+        d_surface_loss = torch.mean(real_surface_weights.view(-1) * d_loss_real_surface.view(-1)) + torch.mean(fake_surface_weights.view(-1) * d_loss_fake_surface.view(-1))
+        d_texture_loss = torch.mean(real_texture_weights.view(-1) * d_loss_real_texture.view(-1)) + torch.mean(fake_texture_weights.view(-1) * d_loss_fake_texture.view(-1))
 
         d_loss = d_surface_loss + d_texture_loss
 
@@ -300,7 +324,7 @@ def train_CcGAN(kernel_sigma, kappa, photos, train_images, train_labels, gen, di
             tmp.append(preprocess(sampled_photos[idx]).unsqueeze(0))
         z = torch.cat(tmp, dim = 0).to(device)
 
-        batch_fake_images = gen(z, batch_target_surface_labels, batch_target_texture_labels)
+        batch_fake_images = gen(z, net_y2h_surface(batch_target_surface_labels), net_y2h_texture(batch_target_texture_labels))
         
         fake_image_vgg = VGG(batch_fake_images)
         real_image_vgg = VGG(z)
@@ -308,12 +332,19 @@ def train_CcGAN(kernel_sigma, kappa, photos, train_images, train_labels, gen, di
         content_loss = config.LAMBDA_CONTENT * l1_loss(fake_image_vgg, real_image_vgg)
 
         # loss
-        dis_surface = disc_surface(extract_surface.process(batch_fake_images, batch_fake_images, r=5, eps=2e-1), batch_target_surface_labels)
+        dis_surface = disc_surface(
+            extract_surface.process(
+                batch_fake_images, 
+                batch_fake_images, r=5, eps=2e-1
+            ), 
+            net_y2h_surface(batch_target_surface_labels)
+        )
         tmp, = extract_texture.process(batch_fake_images)
-        dis_texture = disc_texture(tmp, batch_target_texture_labels)
+        dis_texture = disc_texture(tmp, net_y2h_texture(batch_target_texture_labels))
 
-        g_surface_loss = - config.LAMBDA_SURFACE * torch.mean(torch.log(dis_surface+1e-20))
-        g_texture_loss = - config.LAMBDA_TEXTURE * torch.mean(torch.log(dis_texture+1e-20))
+        # still, use hinge loss_type
+        g_surface_loss = - config.LAMBDA_SURFACE * dis_surface.mean()
+        g_texture_loss = - config.LAMBDA_TEXTURE * dis_texture.mean()
 
         g_loss = g_surface_loss + g_texture_loss + content_loss
 

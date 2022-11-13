@@ -49,12 +49,13 @@ def train_net_embed(net, extracotr_name, extractor, train_images, train_lables, 
     #end if
 
     start_tmp = timeit.default_timer()
-    for epoch in range(resume_epoch, epochs):
+    for epoch in range(resume_epoch, 20):
         net.train()
         train_loss = 0
         adjust_learning_rate_1(optimizer, epoch)
         # for _, (batch_train_images, batch_train_labels) in enumerate(trainloader):
-        for idx in range(0, 2000 * train_images.shape[0]):
+        # for idx in range(0, int(train_images.shape[0]/config.BATCH_SIZE)):
+        for idx in range(0, 20):
             # batch_train_images = nn.functional.interpolate(batch_train_images, size = (299,299), scale_factor=None, mode='bilinear', align_corners=False)
 
             batch_images_indices = np.random.randint(0, train_images.shape[0], (batch_size_max, )) # N, 256, 256, 3
@@ -63,7 +64,7 @@ def train_net_embed(net, extracotr_name, extractor, train_images, train_lables, 
             tmp = []
             for k in range(0, batch_train_images.shape[0]):
                 tmp.append(preprocess(batch_train_images[k]).unsqueeze(0))
-            batch_train_images = torch.cat(tmp, dim = 0).to(config.DEVICE)
+            batch_train_images = torch.cat(tmp, dim = 0).type(torch.float).to(config.DEVICE)
             if extracotr_name == "surface":
                 batch_train_images = extractor.process(batch_train_images, batch_train_images, r=5, eps=2e-1)
             elif extracotr_name == "texture":
@@ -72,7 +73,7 @@ def train_net_embed(net, extracotr_name, extractor, train_images, train_lables, 
                 assert False
 
             batch_train_labels = train_lables[batch_images_indices]
-            batch_train_labels = torch.from_numpy(batch_train_labels).to(config.DEVICE)
+            batch_train_labels = torch.from_numpy(batch_train_labels).type(torch.float).to(config.DEVICE).view(-1,1)
 
             #Forward pass
             outputs, _ = net(batch_train_images)

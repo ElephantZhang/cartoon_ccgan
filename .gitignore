@@ -1,0 +1,11 @@
+data/
+saved_images/
+saved_models/
+__pycache__/
+model_hed_sketch.py
+models/__pycache__/
+cartoon_CcGAN_surface_texture/
+cartoon_CcGAN_first_try_with_like/
+kyoma_Test_CcGAN.pth
+vgg19-dcbb9e9d.pth
+*.pth
