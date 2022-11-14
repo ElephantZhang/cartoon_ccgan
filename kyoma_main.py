@@ -73,14 +73,14 @@ def get_net_y2h(extracotr_name, extractor, style_images, style_labels):
     print("\n Start training CNN for label embedding >>>")
     net_embed = ResNet34_embed(dim_embed=config.dim_embed)
     net_embed = net_embed.to(config.DEVICE)
-    net_embed = nn.DataParallel(net_embed)
+    # net_embed = nn.DataParallel(net_embed)
 
     net_y2h = model_y2h(dim_embed=config.dim_embed)
     net_y2h = net_y2h.to(config.DEVICE)
-    net_y2h = nn.DataParallel(net_y2h)
+    # net_y2h = nn.DataParallel(net_y2h)s
 
 
-    net_embed = train_net_embed(net=net_embed, extracotr_name=extracotr_name, extractor=extractor, train_images=style_images, train_lables=style_labels, path_to_ckpt = "/home/zhangyushan/kyoma/cartoon_CcGAN/saved_embed_models/")
+    net_embed = train_net_embed(net=net_embed, extracotr_name=extracotr_name, extractor=extractor, train_images=style_images, train_lables=style_labels, path_to_ckpt = "./saved_embed_models/")
     # save model
     torch.save({
         'net_state_dict': net_embed.state_dict(),
@@ -108,9 +108,9 @@ if __name__ == "__main__":
     gen = Generator(in_channels=3)
     disc_surface = CcGAN_SAGAN_Discriminator(dim_embed=config.dim_embed)
     disc_texture = CcGAN_SAGAN_Discriminator(dim_embed=config.dim_embed)
-    gen = nn.DataParallel(gen)
-    disc_surface = nn.DataParallel(disc_surface)
-    disc_texture = nn.DataParallel(disc_texture)
+    # gen = nn.DataParallel(gen)
+    # disc_surface = nn.DataParallel(disc_surface)
+    # disc_texture = nn.DataParallel(disc_texture)
     
     VGG19 = VGGNet(in_channels=3, VGGtype="VGG19", init_weights=config.VGG_WEIGHTS, batch_norm=False, feature_mode=True)
     VGG19 = VGG19.to(config.DEVICE)
@@ -136,7 +136,7 @@ if __name__ == "__main__":
         else:
             args.kappa = 1/kappa_base**2
 
-    gen, disc_surface, disc_texure = train_CcGAN(args.kernel_sigma, args.kappa, photo_images, style_images, style_labels, gen, disc_surface, disc_texture, net_y2h_surface, net_y2h_texture, VGG19, save_images_folder="/home/zhangyushan/kyoma/cartoon_CcGAN/saved_images/surface_texture/", save_models_folder = "/home/zhangyushan/kyoma/cartoon_CcGAN/saved_models/surface_texture/")
+    gen, disc_surface, disc_texure = train_CcGAN(args.kernel_sigma, args.kappa, photo_images, style_images, style_labels, gen, disc_surface, disc_texture, net_y2h_surface, net_y2h_texture, VGG19, save_images_folder="./saved_images/surface_texture/", save_models_folder = "./saved_models/surface_texture/")
 
     torch.save({
         'gen_state_dict': gen.state_dict(),

@@ -47,7 +47,7 @@ preprocess = transforms.Compose([
 ])
 
 def pretrain_gen(netG, net_y2h_surface, net_y2h_texture, opt_gen, photos, l1_loss, VGG):
-    for epoch in range(0, 10):
+    for epoch in range(0, config.NUM_PRETRAIN_EPOCHS):
         z = photos[np.random.choice(photos.shape[0], batch_size_max)]
         tmp = []
         for idx in range(0, batch_size_max):
@@ -292,9 +292,9 @@ def train_CcGAN(kernel_sigma, kappa, photos, train_images, train_labels, gen, di
 
         # use hinge loss type
         d_loss_real_surface = torch.nn.ReLU()(1.0 - dis_real_surface)
-        d_loss_fake_surface = torch.nn.ReLU()(1.0 - dis_fake_surface)
+        d_loss_fake_surface = torch.nn.ReLU()(1.0 + dis_fake_surface)
         d_loss_real_texture = torch.nn.ReLU()(1.0 - dis_real_texture)
-        d_loss_fake_texture = torch.nn.ReLU()(1.0 - dis_fake_texture)
+        d_loss_fake_texture = torch.nn.ReLU()(1.0 + dis_fake_texture)
 
         d_surface_loss = torch.mean(real_surface_weights.view(-1) * d_loss_real_surface.view(-1)) + torch.mean(fake_surface_weights.view(-1) * d_loss_fake_surface.view(-1))
         d_texture_loss = torch.mean(real_texture_weights.view(-1) * d_loss_real_texture.view(-1)) + torch.mean(fake_texture_weights.view(-1) * d_loss_fake_texture.view(-1))
@@ -364,7 +364,7 @@ def train_CcGAN(kernel_sigma, kappa, photos, train_images, train_labels, gen, di
             sw.add_scalar("content loss", content_loss.item(), niter)
             print ("CcGAN: [Iter %d/%d] [D loss: %.4e] [G loss: %.4e] [Time: %.4f]" % (niter+1, niters, d_loss.item(), g_loss.item(), timeit.default_timer()-start_time))
             print ("[real surface prob: %.3f] [fake surface prob: %.3f]\n[real texture prob: %.3f] [fake texture prob: %.3f]" % 
-                    (dis_real_surface.mean().item(), dis_fake_surface.mean().item(), dis_real_texture.mean().item(), dis_fake_texture.mean().item()))
+                    (d_loss_real_surface.mean().item(), d_loss_fake_surface.mean().item(), d_loss_real_texture.mean().item(), d_loss_fake_texture.mean().item()))
             print ("[D surface loss: %.4e] [D texture loss: %.4e]\n[G surface loss: %.4e] [G texture loss: %.4e] [content loss: %.4e]" % 
                     (d_surface_loss.item(), d_texture_loss.item(), g_surface_loss.item(), g_texture_loss.item(), content_loss.item()))
 
@@ -380,7 +380,7 @@ def train_CcGAN(kernel_sigma, kappa, photos, train_images, train_labels, gen, di
                 tmp = []
                 for k in range(0, y_fixed.shape[0]):
                     for kk in range(0, y_fixed.shape[0]):
-                        gen_img = gen(z_test, y_fixed[k].repeat(z_test.shape[0]), y_fixed[kk].repeat(z_test.shape[0]))
+                        gen_img = gen(z_test, net_y2h_surface(y_fixed[k]), net_y2h_texture(y_fixed[kk]))
                         gen_img = gen_img[0:1, :, :, :]
                         _, = extract_texture.process(gen_img)
                         tmp.append(torch.cat((gen_img, extract_surface.process(gen_img, gen_img, r=5, eps=2e-1), _), axis=3))
