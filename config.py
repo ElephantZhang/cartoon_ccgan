@@ -3,7 +3,7 @@ import albumentations as A
 from albumentations.pytorch import ToTensorV2
 import os
 
-DEVICE = "cuda" #if torch.cuda.is_available() else "cpu"
+DEVICE = "cuda:0" #if torch.cuda.is_available() else "cpu"
 
 PROJECT_NAME = "line_distiller"
 
@@ -38,7 +38,7 @@ SAVE_MODEL_FREQ = 5
 
 # Training Configuration:
 #Paper Configuration:
-BATCH_SIZE = 16
+BATCH_SIZE = 64
 #LEARNING_RATE = 2e-4
 #=============================
 # BATCH_SIZE = 64
@@ -62,10 +62,10 @@ dim_embed = 64
 # LAMBDA_DOG = 2
 # LAMBDA_LIKE = 5
 # LAMBDA_SKETCH = 1.5
-LAMBDA_SURFACE = 5
+LAMBDA_SURFACE = 2
 LAMBDA_TEXTURE = 10
 # LAMBDA_STRUCTURE = 200
-LAMBDA_CONTENT = 3
+LAMBDA_CONTENT = 6
 # LAMBDA_VARIATION = 10000
 #=============================
 

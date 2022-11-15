@@ -1,21 +1,21 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import config
 
 # PyTorch implementation by vinesmsuic
 # Referenced from official tensorflow implementation: https://github.com/SystemErrorWang/White-box-Cartoonization/blob/master/train_code/network.py
 # slim.convolution2d uses constant padding (zeros).
 
 dim_embed = 64
-device = "cuda"
 
 class ConditionalBatchNorm2d(nn.Module):
     def __init__(self, num_features, dim_embed):
         super().__init__()
         self.num_features = num_features
-        self.bn = nn.BatchNorm2d(num_features, momentum=0.001, affine=False, device="cuda")
-        self.embed_gamma = nn.Linear(dim_embed, num_features, bias=False, device="cuda")
-        self.embed_beta = nn.Linear(dim_embed, num_features, bias=False, device="cuda")
+        self.bn = nn.BatchNorm2d(num_features, momentum=0.001, affine=False, device=config.DEVICE)
+        self.embed_gamma = nn.Linear(dim_embed, num_features, bias=False, device=config.DEVICE)
+        self.embed_beta = nn.Linear(dim_embed, num_features, bias=False, device=config.DEVICE)
 
     def forward(self, x, y0, y1):
         out = self.bn(x)
@@ -38,10 +38,10 @@ class ResidualBlock(nn.Module): # B, 128, 64, 64
         #     nn.Conv2d(channels, channels, kernel_size=kernel_size, stride=stride, padding=padding, padding_mode=padding_mode),
         # )
         self.cond_batchnorm = ConditionalBatchNorm2d(channels, dim_embed)
-        self.conv0 = nn.Conv2d(channels, channels, kernel_size=kernel_size, stride=stride, padding=padding, padding_mode=padding_mode, device="cuda")
+        self.conv0 = nn.Conv2d(channels, channels, kernel_size=kernel_size, stride=stride, padding=padding, padding_mode=padding_mode, device=config.DEVICE)
         self.relu = nn.LeakyReLU(negative_slope=0.2, inplace=True)
         self.cond_batchnrom = ConditionalBatchNorm2d(channels, dim_embed)
-        self.conv1 = nn.Conv2d(channels, channels, kernel_size=kernel_size, stride=stride, padding=padding, padding_mode=padding_mode, device="cuda")
+        self.conv1 = nn.Conv2d(channels, channels, kernel_size=kernel_size, stride=stride, padding=padding, padding_mode=padding_mode, device=config.DEVICE)
 
     def forward(self, x, y_surface, y_texture):
         #Elementwise Sum (ES)
@@ -62,7 +62,7 @@ class Up1(nn.Module):
         #     ConditionalBatchNorm2d(num_features*2, dim_embed),
         #     nn.LeakyReLU(negative_slope=0.2, inplace=True),
         # )
-        self.conv = nn.Conv2d(num_features*4, num_features*2, kernel_size=kernel_size, stride=stride, padding=padding, padding_mode=padding_mode, device="cuda")
+        self.conv = nn.Conv2d(num_features*4, num_features*2, kernel_size=kernel_size, stride=stride, padding=padding, padding_mode=padding_mode, device=config.DEVICE)
         self.cond_batchnorm = ConditionalBatchNorm2d(num_features*2, dim_embed)
         self.relu = nn.LeakyReLU(negative_slope=0.2, inplace=True)
     def forward(self, x, y_surface, y_texture):
@@ -84,10 +84,10 @@ class Up2(nn.Module):
     #     )
     def __init__(self, num_features, kernel_size, stride, padding, padding_mode):
         super().__init__()
-        self.conv0 = nn.Conv2d(num_features*2, num_features*2, kernel_size=3, stride=1, padding=1, padding_mode=padding_mode, device="cuda")
+        self.conv0 = nn.Conv2d(num_features*2, num_features*2, kernel_size=3, stride=1, padding=1, padding_mode=padding_mode, device=config.DEVICE)
         self.cond_batchnorm0 = ConditionalBatchNorm2d(num_features*2, dim_embed)
         self.relu0 = nn.LeakyReLU(negative_slope=0.2, inplace=True)
-        self.conv1 = nn.Conv2d(num_features*2, num_features, kernel_size=3, stride=1, padding=1, padding_mode=padding_mode, device="cuda")
+        self.conv1 = nn.Conv2d(num_features*2, num_features, kernel_size=3, stride=1, padding=1, padding_mode=padding_mode, device=config.DEVICE)
         self.cond_batchnorm1 = ConditionalBatchNorm2d(num_features, dim_embed)
         self.relu1 = nn.LeakyReLU(negative_slope=0.2, inplace=True)
     def forward(self, x, y_surface, y_texture):
@@ -111,9 +111,9 @@ class Last(nn.Module):
         # )
         super().__init__()
         self.cond_batchnorm = ConditionalBatchNorm2d(num_features, dim_embed)
-        self.conv0 = nn.Conv2d(num_features, num_features, kernel_size=3, stride=1, padding=1, padding_mode=padding_mode, device="cuda")
+        self.conv0 = nn.Conv2d(num_features, num_features, kernel_size=3, stride=1, padding=1, padding_mode=padding_mode, device=config.DEVICE)
         self.relu = nn.LeakyReLU(negative_slope=0.2, inplace=True)
-        self.conv1 = nn.Conv2d(num_features, out_channels, kernel_size=7, stride=1, padding=3, padding_mode=padding_mode, device="cuda")
+        self.conv1 = nn.Conv2d(num_features, out_channels, kernel_size=7, stride=1, padding=3, padding_mode=padding_mode, device=config.DEVICE)
     def forward(self, x, y_surface, y_texture):
         x = self.cond_batchnorm(x, y_surface, y_texture)
         x = self.conv0(x)

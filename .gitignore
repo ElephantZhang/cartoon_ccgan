@@ -9,3 +9,5 @@ cartoon_CcGAN_first_try_with_like/
 kyoma_Test_CcGAN.pth
 vgg19-dcbb9e9d.pth
 *.pth
+context12/
+surface_texture/

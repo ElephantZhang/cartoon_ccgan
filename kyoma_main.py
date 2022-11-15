@@ -77,29 +77,37 @@ def get_net_y2h(extracotr_name, extractor, style_images, style_labels):
 
     net_y2h = model_y2h(dim_embed=config.dim_embed)
     net_y2h = net_y2h.to(config.DEVICE)
-    # net_y2h = nn.DataParallel(net_y2h)s
+    # net_y2h = nn.DataParallel(net_y2h)
 
+    if not os.path.isfile(extracotr_name+"_net_embed_ckpt.pth"):
+        net_embed = train_net_embed(net=net_embed, extracotr_name=extracotr_name, extractor=extractor, train_images=style_images, train_lables=style_labels, path_to_ckpt = "./saved_embed_models/")
+        # save model
+        torch.save({
+            'net_state_dict': net_embed.state_dict(),
+        }, extracotr_name+"_net_embed_ckpt.pth")
+    else:
+        checkpoint = torch.load(extracotr_name+"_net_embed_ckpt.pth")
+        net_embed.load_state_dict(checkpoint['net_state_dict'])
+        print("load net_embed from", extracotr_name+"_net_embed_ckpt.pth")
 
-    net_embed = train_net_embed(net=net_embed, extracotr_name=extracotr_name, extractor=extractor, train_images=style_images, train_lables=style_labels, path_to_ckpt = "./saved_embed_models/")
-    # save model
-    torch.save({
-        'net_state_dict': net_embed.state_dict(),
-    }, "net_embed_ckpt.pth")
-
-    print("\n Start training net_y2h >>>")
-    unique_labels_norm = np.sort(np.array(list(set(style_labels))))
-    net_y2h = train_net_y2h(unique_labels_norm, net_y2h, net_embed)
-    # save model
-    torch.save({
-        'net_state_dict': net_y2h.state_dict(),
-    }, "net_y2h_ckpt.pth")
+    if not os.path.isfile(extracotr_name+"_net_y2h_ckpt.pth"):
+        print("\n Start training net_y2h >>>")
+        unique_labels_norm = np.sort(np.array(list(set(style_labels))))
+        net_y2h = train_net_y2h(unique_labels_norm, net_y2h, net_embed)
+        # save model
+        torch.save({
+            'net_state_dict': net_y2h.state_dict(),
+        }, extracotr_name+"_net_y2h_ckpt.pth")
+    else:
+        checkpoint = torch.load(extracotr_name+"_net_y2h_ckpt.pth")
+        net_y2h.load_state_dict(checkpoint['net_state_dict'])
     return net_y2h
 
 
 if __name__ == "__main__":
     style_images, style_labels, photo_images = kyoma_loder()
 
-    extract_texture = ColorShift(device, mode='uniform', image_format='rgb')
+    extract_texture = ColorShift(config.DEVICE, mode='uniform', image_format='rgb')
     extract_surface = GuidedFilter()
 
     net_y2h_surface = get_net_y2h("surface", extract_surface, style_images, style_labels)
@@ -136,10 +144,10 @@ if __name__ == "__main__":
         else:
             args.kappa = 1/kappa_base**2
 
-    gen, disc_surface, disc_texure = train_CcGAN(args.kernel_sigma, args.kappa, photo_images, style_images, style_labels, gen, disc_surface, disc_texture, net_y2h_surface, net_y2h_texture, VGG19, save_images_folder="./saved_images/surface_texture/", save_models_folder = "./saved_models/surface_texture/")
+    gen, disc_surface, disc_texure = train_CcGAN(args.kernel_sigma, args.kappa, photo_images, style_images, style_labels, gen, disc_surface, disc_texture, net_y2h_surface, net_y2h_texture, VGG19, save_images_folder="./saved_images/context12/", save_models_folder = "./saved_models/context12/")
 
     torch.save({
         'gen_state_dict': gen.state_dict(),
         'disc_surface_state_dict': disc_surface.state_dict(),
         'disc_texure_state_dict': disc_texture.state_dict(),
-    }, "/home/zhangyushan/kyoma/cartoon_CcGAN/saved_models/surface_texture/kyoma_Test_CcGAN.pth")
+    }, "/home/zhangyushan/kyoma/cartoon_CcGAN/saved_models/context12/kyoma_Test_CcGAN.pth")

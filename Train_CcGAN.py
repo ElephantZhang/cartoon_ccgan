@@ -16,11 +16,11 @@ from opts import parse_opts
 
 from torch.utils.tensorboard import SummaryWriter
 
-sw = SummaryWriter("cartoon_CcGAN_surface_texture")
+sw = SummaryWriter("context12")
 
 ''' Settings '''
 args = parse_opts()
-device = "cuda"
+# device = "cuda:1"
 
 # some parameters in opts
 niters = args.niters_gan
@@ -52,7 +52,7 @@ def pretrain_gen(netG, net_y2h_surface, net_y2h_texture, opt_gen, photos, l1_los
         tmp = []
         for idx in range(0, batch_size_max):
             tmp.append(preprocess(z[idx]).unsqueeze(0))
-        z = torch.cat(tmp, dim=0).to(device)
+        z = torch.cat(tmp, dim=0).to(config.DEVICE)
 
         batch_fake_images = netG(
             z, 
@@ -75,14 +75,14 @@ def train_CcGAN(kernel_sigma, kappa, photos, train_images, train_labels, gen, di
     '''
     l1_loss = nn.L1Loss()    
 
-    gen = gen.to(device)
-    disc_surface = disc_surface.to(device)
-    disc_texture = disc_texture.to(device)
+    gen = gen.to(config.DEVICE)
+    disc_surface = disc_surface.to(config.DEVICE)
+    disc_texture = disc_texture.to(config.DEVICE)
 
     optimizerG = torch.optim.Adam(gen.parameters(), lr=lr_g, betas=(0.5, 0.999))
     optimizerD = torch.optim.Adam(itertools.chain(disc_surface.parameters(), disc_texture.parameters()), lr=lr_d, betas=(0.5, 0.999))
 
-    extract_texture = ColorShift(device, mode='uniform', image_format='rgb')
+    extract_texture = ColorShift(config.DEVICE, mode='uniform', image_format='rgb')
     extract_surface = GuidedFilter()
 
     if save_models_folder is not None and resume_niters>0:
@@ -98,7 +98,7 @@ def train_CcGAN(kernel_sigma, kappa, photos, train_images, train_labels, gen, di
         
         torch.set_rng_state(checkpoint['rng_state'])
     
-    if False:
+    if os.path.isfile(save_models_folder + "/CcGAN_pretrained_gen.pth"):
         save_file = save_models_folder + "/CcGAN_pretrained_gen.pth"
         checkpoint = torch.load(save_file)
         gen.load_state_dict(checkpoint['gen_state_dict'])
@@ -130,7 +130,7 @@ def train_CcGAN(kernel_sigma, kappa, photos, train_images, train_labels, gen, di
     for i in range(n_row):
         y_fixed[i] = selected_labels[i]
     print(y_fixed)
-    y_fixed = torch.from_numpy(y_fixed).type(torch.float).to(device).to(device)
+    y_fixed = torch.from_numpy(y_fixed).type(torch.float).to(config.DEVICE)
 
     start_time = timeit.default_timer()
     for niter in range(resume_niters, niters):
@@ -228,41 +228,41 @@ def train_CcGAN(kernel_sigma, kappa, photos, train_images, train_labels, gen, di
 
         batch_real_surface_labels = train_labels[batch_real_surface_indx]
         batch_real_texture_labels = train_labels[batch_real_texture_indx]
-        batch_real_surface_labels = torch.from_numpy(batch_real_surface_labels).type(torch.float).to(device)
-        batch_real_texture_labels = torch.from_numpy(batch_real_texture_labels).type(torch.float).to(device)
+        batch_real_surface_labels = torch.from_numpy(batch_real_surface_labels).type(torch.float).to(config.DEVICE)
+        batch_real_texture_labels = torch.from_numpy(batch_real_texture_labels).type(torch.float).to(config.DEVICE)
 
         ## normalize real images to [-1,1]
         tmp = []
         for idx in range(0, batch_real_surface_images.shape[0]):
             tmp.append(preprocess(batch_real_surface_images[idx]).unsqueeze(0))
-        batch_real_surface_images = torch.cat(tmp, dim=0).to(device)
+        batch_real_surface_images = torch.cat(tmp, dim=0).to(config.DEVICE)
         tmp = []
         for idx in range(0, batch_real_texture_images.shape[0]):
             tmp.append(preprocess(batch_real_texture_images[idx]).unsqueeze(0))
-        batch_real_texture_images = torch.cat(tmp, dim=0).to(device)
+        batch_real_texture_images = torch.cat(tmp, dim=0).to(config.DEVICE)
 
 
         ## generate the fake image batch
-        batch_fake_surface_labels = torch.from_numpy(batch_fake_surface_labels).type(torch.float).to(device)
-        batch_fake_texture_labels = torch.from_numpy(batch_fake_texture_labels).type(torch.float).to(device)
+        batch_fake_surface_labels = torch.from_numpy(batch_fake_surface_labels).type(torch.float).to(config.DEVICE)
+        batch_fake_texture_labels = torch.from_numpy(batch_fake_texture_labels).type(torch.float).to(config.DEVICE)
 
         z = photos[np.random.choice(photos.shape[0], batch_size_max)]
         tmp = []
         for idx in range(0, batch_size_max):
             tmp.append(preprocess(z[idx]).unsqueeze(0))
-        z = torch.cat(tmp, dim=0).to(device)
+        z = torch.cat(tmp, dim=0).to(config.DEVICE)
         batch_fake_images = gen(z, net_y2h_surface(batch_fake_surface_labels), net_y2h_texture(batch_fake_texture_labels))
 
         ## target labels on gpu
-        batch_target_surface_labels = torch.from_numpy(batch_target_surface_labels).type(torch.float).to(device)
-        batch_target_texture_labels = torch.from_numpy(batch_target_texture_labels).type(torch.float).to(device)
+        batch_target_surface_labels = torch.from_numpy(batch_target_surface_labels).type(torch.float).to(config.DEVICE)
+        batch_target_texture_labels = torch.from_numpy(batch_target_texture_labels).type(torch.float).to(config.DEVICE)
 
         ## weight vector
         if threshold_type == "soft":
-            real_surface_weights = torch.exp(-kappa*(batch_real_surface_labels - batch_target_surface_labels)**2).to(device)
-            fake_surface_weights = torch.exp(-kappa*(batch_fake_surface_labels - batch_target_surface_labels)**2).to(device)
-            real_texture_weights = torch.exp(-kappa*(batch_real_texture_labels - batch_target_texture_labels)**2).to(device)
-            fake_texture_weights = torch.exp(-kappa*(batch_fake_texture_labels - batch_target_texture_labels)**2).to(device)
+            real_surface_weights = torch.exp(-kappa*(batch_real_surface_labels - batch_target_surface_labels)**2).to(config.DEVICE)
+            fake_surface_weights = torch.exp(-kappa*(batch_fake_surface_labels - batch_target_surface_labels)**2).to(config.DEVICE)
+            real_texture_weights = torch.exp(-kappa*(batch_real_texture_labels - batch_target_texture_labels)**2).to(config.DEVICE)
+            fake_texture_weights = torch.exp(-kappa*(batch_fake_texture_labels - batch_target_texture_labels)**2).to(config.DEVICE)
         else:
             assert False
             # real_weights = torch.ones(batch_size_disc, dtype=torch.float).to(device)
@@ -311,10 +311,10 @@ def train_CcGAN(kernel_sigma, kappa, photos, train_images, train_labels, gen, di
 
         # generate fake images
         batch_target_surface_labels = batch_target_surface_labels_with_epsilon[0:batch_size_gene]
-        batch_target_surface_labels = torch.from_numpy(batch_target_surface_labels).type(torch.float).to(device)
+        batch_target_surface_labels = torch.from_numpy(batch_target_surface_labels).type(torch.float).to(config.DEVICE)
 
         batch_target_texture_labels = batch_target_texture_labels_with_epsilon[0:batch_size_gene]
-        batch_target_texture_labels = torch.from_numpy(batch_target_texture_labels).type(torch.float).to(device)
+        batch_target_texture_labels = torch.from_numpy(batch_target_texture_labels).type(torch.float).to(config.DEVICE)
 
         photo_sample_indices = np.random.randint(0, photos.shape[0], (batch_size_max, )) # N, 256, 256, 3
         sampled_photos = photos[photo_sample_indices]
@@ -322,7 +322,7 @@ def train_CcGAN(kernel_sigma, kappa, photos, train_images, train_labels, gen, di
         tmp = []
         for idx in range(0, sampled_photos.shape[0]):
             tmp.append(preprocess(sampled_photos[idx]).unsqueeze(0))
-        z = torch.cat(tmp, dim = 0).to(device)
+        z = torch.cat(tmp, dim = 0).to(config.DEVICE)
 
         batch_fake_images = gen(z, net_y2h_surface(batch_target_surface_labels), net_y2h_texture(batch_target_texture_labels))
         
@@ -376,14 +376,14 @@ def train_CcGAN(kernel_sigma, kappa, photos, train_images, train_labels, gen, di
                 tmp = []
                 for k in range(0, test_photo.shape[0]):
                     tmp.append(preprocess(test_photo[k]).unsqueeze(0))
-                z_test = torch.cat(tmp, dim=0).to(device)
+                z_test = torch.cat(tmp, dim=0).to(config.DEVICE)
                 tmp = []
                 for k in range(0, y_fixed.shape[0]):
                     for kk in range(0, y_fixed.shape[0]):
                         gen_img = gen(z_test, net_y2h_surface(y_fixed[k]), net_y2h_texture(y_fixed[kk]))
                         gen_img = gen_img[0:1, :, :, :]
                         _, = extract_texture.process(gen_img)
-                        tmp.append(torch.cat((gen_img, extract_surface.process(gen_img, gen_img, r=5, eps=2e-1), _), axis=3))
+                        tmp.append(torch.cat((z_test[0:1,:,:,:],gen_img, extract_surface.process(gen_img, gen_img, r=5, eps=2e-1), _), axis=3))
                 gen_imgs = torch.cat(tmp, dim=0)
                 gen_imgs = gen_imgs.detach().cpu()
                 save_image(gen_imgs*0.5+0.5, save_images_folder +'/{}.png'.format(niter+1), nrow=n_row, normalize=True)
@@ -410,15 +410,15 @@ def SampCcGAN_given_label(netG, label, path=None, NFAKE = 10000, batch_size = 50
     if batch_size>NFAKE:
         batch_size = NFAKE
     fake_images = np.zeros((NFAKE+batch_size, NC, IMG_SIZE, IMG_SIZE), dtype=np.float)
-    netG=netG.to(device)
+    netG=netG.to(config.DEVICE)
     netG.eval()
 
     with torch.no_grad():
         tmp = 0
         while tmp < NFAKE:
-            z = torch.randn(batch_size, dim_gan, dtype=torch.float).to(device)
+            z = torch.randn(batch_size, dim_gan, dtype=torch.float).to(config.DEVICE)
             y = np.ones(batch_size) * label
-            y = torch.from_numpy(y).type(torch.float).view(-1,1).to(device)
+            y = torch.from_numpy(y).type(torch.float).view(-1,1).to(config.DEVICE)
             batch_fake_images = netG(z, y)
             fake_images[tmp:(tmp+batch_size)] = batch_fake_images.cpu().detach().numpy()
             tmp += batch_size
