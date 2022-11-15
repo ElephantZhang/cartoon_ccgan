@@ -16,7 +16,7 @@ from opts import parse_opts
 
 from torch.utils.tensorboard import SummaryWriter
 
-sw = SummaryWriter("context12")
+sw = SummaryWriter(config.PROJECT_NAME)
 
 ''' Settings '''
 args = parse_opts()
@@ -364,7 +364,7 @@ def train_CcGAN(kernel_sigma, kappa, photos, train_images, train_labels, gen, di
             sw.add_scalar("content loss", content_loss.item(), niter)
             print ("CcGAN: [Iter %d/%d] [D loss: %.4e] [G loss: %.4e] [Time: %.4f]" % (niter+1, niters, d_loss.item(), g_loss.item(), timeit.default_timer()-start_time))
             print ("[real surface prob: %.3f] [fake surface prob: %.3f]\n[real texture prob: %.3f] [fake texture prob: %.3f]" % 
-                    (d_loss_real_surface.mean().item(), d_loss_fake_surface.mean().item(), d_loss_real_texture.mean().item(), d_loss_fake_texture.mean().item()))
+                    (dis_real_surface.mean().item(), dis_fake_surface.mean().item(), dis_real_texture.mean().item(), dis_fake_texture.mean().item()))
             print ("[D surface loss: %.4e] [D texture loss: %.4e]\n[G surface loss: %.4e] [G texture loss: %.4e] [content loss: %.4e]" % 
                     (d_surface_loss.item(), d_texture_loss.item(), g_surface_loss.item(), g_texture_loss.item(), content_loss.item()))
 

@@ -3,9 +3,9 @@ import albumentations as A
 from albumentations.pytorch import ToTensorV2
 import os
 
-DEVICE = "cuda:0" #if torch.cuda.is_available() else "cpu"
+DEVICE = "cuda:1" #if torch.cuda.is_available() else "cpu"
 
-PROJECT_NAME = "line_distiller"
+PROJECT_NAME = "context12"
 
 #Folder Configuration:
 #=============================
@@ -62,10 +62,10 @@ dim_embed = 64
 # LAMBDA_DOG = 2
 # LAMBDA_LIKE = 5
 # LAMBDA_SKETCH = 1.5
-LAMBDA_SURFACE = 2
-LAMBDA_TEXTURE = 10
+LAMBDA_SURFACE = 0.1
+LAMBDA_TEXTURE = 1
 # LAMBDA_STRUCTURE = 200
-LAMBDA_CONTENT = 6
+LAMBDA_CONTENT = 3
 # LAMBDA_VARIATION = 10000
 #=============================
 

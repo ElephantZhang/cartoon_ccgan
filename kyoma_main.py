@@ -144,7 +144,7 @@ if __name__ == "__main__":
         else:
             args.kappa = 1/kappa_base**2
 
-    gen, disc_surface, disc_texure = train_CcGAN(args.kernel_sigma, args.kappa, photo_images, style_images, style_labels, gen, disc_surface, disc_texture, net_y2h_surface, net_y2h_texture, VGG19, save_images_folder="./saved_images/context12/", save_models_folder = "./saved_models/context12/")
+    gen, disc_surface, disc_texure = train_CcGAN(args.kernel_sigma, args.kappa, photo_images, style_images, style_labels, gen, disc_surface, disc_texture, net_y2h_surface, net_y2h_texture, VGG19, save_images_folder="./saved_images/"+config.PROJECT_NAME, save_models_folder = "./saved_models/"+config.PROJECT_NAME)
 
     torch.save({
         'gen_state_dict': gen.state_dict(),
