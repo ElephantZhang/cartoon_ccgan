@@ -210,7 +210,7 @@ def train_CcGAN(kernel_sigma, kappa, photos, train_images, train_labels, gen, di
             lb_surface = max(0.0, lb_surface); ub_surface = min(ub_surface, 1.0)
             lb_texture = max(0.0, lb_texture); ub_texture = min(ub_texture, 1.0)
             assert lb_surface<=ub_surface
-            assert lb_surface<=ub_surface
+            assert lb_texture<=ub_texture
             assert lb_surface>=0 and ub_surface>=0
             assert lb_texture>=0 and ub_texture>=0
             assert lb_surface<=1 and ub_surface<=1
