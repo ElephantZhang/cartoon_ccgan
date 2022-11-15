@@ -11,3 +11,4 @@ vgg19-dcbb9e9d.pth
 *.pth
 context12/
 surface_texture/
+double_linear_batchnorm/
