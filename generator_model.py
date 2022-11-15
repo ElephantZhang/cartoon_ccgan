@@ -14,16 +14,21 @@ class ConditionalBatchNorm2d(nn.Module):
         super().__init__()
         self.num_features = num_features
         self.bn = nn.BatchNorm2d(num_features, momentum=0.001, affine=False, device=config.DEVICE)
-        self.embed_gamma = nn.Linear(dim_embed, num_features, bias=False, device=config.DEVICE)
-        self.embed_beta = nn.Linear(dim_embed, num_features, bias=False, device=config.DEVICE)
+        self.embed_gamma0 = nn.Linear(dim_embed, num_features, bias=False, device=config.DEVICE)
+        self.embed_beta0 = nn.Linear(dim_embed, num_features, bias=False, device=config.DEVICE)
+        self.embed_gamma1 = nn.Linear(dim_embed, num_features, bias=False, device=config.DEVICE)
+        self.embed_beta1 = nn.Linear(dim_embed, num_features, bias=False, device=config.DEVICE)
 
-    def forward(self, x, y0, y1):
+    def forward(self, x, y0, y1): # in: B, C, W, H, out: out: 2B, C, W, H
         out = self.bn(x)
-        gamma0 = self.embed_gamma(y0).view(-1, self.num_features, 1, 1)
-        beta0 = self.embed_beta(y0).view(-1, self.num_features, 1, 1)
-        gamma1 = self.embed_gamma(y1).view(-1, self.num_features, 1, 1)
-        beta1 = self.embed_beta(y1).view(-1, self.num_features, 1, 1)
-        out = out + gamma0*out + beta0 + gamma1*out + beta1
+        
+        gamma0 = self.embed_gamma0(y0).view(-1, self.num_features, 1, 1)
+        beta0 = self.embed_beta0(y0).view(-1, self.num_features, 1, 1)
+
+        gamma1 = self.embed_gamma1(y1).view(-1, self.num_features, 1, 1)
+        beta1 = self.embed_beta1(y1).view(-1, self.num_features, 1, 1)
+
+        out = torch.cat((out + gamma0*out + beta0, out + gamma1*out + beta1), dim=1)
         return out
 
 
@@ -37,18 +42,18 @@ class ResidualBlock(nn.Module): # B, 128, 64, 64
         #     ConditionalBatchNorm2d(channels, dim_embed),
         #     nn.Conv2d(channels, channels, kernel_size=kernel_size, stride=stride, padding=padding, padding_mode=padding_mode),
         # )
-        self.cond_batchnorm = ConditionalBatchNorm2d(channels, dim_embed)
-        self.conv0 = nn.Conv2d(channels, channels, kernel_size=kernel_size, stride=stride, padding=padding, padding_mode=padding_mode, device=config.DEVICE)
+        self.cond_batchnorm0 = ConditionalBatchNorm2d(channels, dim_embed)
+        self.conv0 = nn.Conv2d(channels*2, channels, kernel_size=kernel_size, stride=stride, padding=padding, padding_mode=padding_mode, device=config.DEVICE)
         self.relu = nn.LeakyReLU(negative_slope=0.2, inplace=True)
-        self.cond_batchnrom = ConditionalBatchNorm2d(channels, dim_embed)
-        self.conv1 = nn.Conv2d(channels, channels, kernel_size=kernel_size, stride=stride, padding=padding, padding_mode=padding_mode, device=config.DEVICE)
+        self.cond_batchnorm1 = ConditionalBatchNorm2d(channels, dim_embed)
+        self.conv1 = nn.Conv2d(channels*2, channels, kernel_size=kernel_size, stride=stride, padding=padding, padding_mode=padding_mode, device=config.DEVICE)
 
     def forward(self, x, y_surface, y_texture):
         #Elementwise Sum (ES)
-        x_ = self.cond_batchnorm(x, y_surface, y_texture)
+        x_ = self.cond_batchnorm0(x, y_surface, y_texture)
         x_ = self.conv0(x_)
         x_ = self.relu(x_)
-        x_ = self.cond_batchnorm(x_, y_surface, y_texture)
+        x_ = self.cond_batchnorm1(x_, y_surface, y_texture)
         x_ = self.conv1(x_)
         # return x + self.block(x)
         return x + x_
@@ -62,13 +67,15 @@ class Up1(nn.Module):
         #     ConditionalBatchNorm2d(num_features*2, dim_embed),
         #     nn.LeakyReLU(negative_slope=0.2, inplace=True),
         # )
-        self.conv = nn.Conv2d(num_features*4, num_features*2, kernel_size=kernel_size, stride=stride, padding=padding, padding_mode=padding_mode, device=config.DEVICE)
+        self.conv0 = nn.Conv2d(num_features*4, num_features*2, kernel_size=kernel_size, stride=stride, padding=padding, padding_mode=padding_mode, device=config.DEVICE)
         self.cond_batchnorm = ConditionalBatchNorm2d(num_features*2, dim_embed)
         self.relu = nn.LeakyReLU(negative_slope=0.2, inplace=True)
+        self.conv1 = nn.Conv2d(num_features*4, num_features*2, kernel_size=kernel_size, stride=stride, padding=padding, padding_mode=padding_mode, device=config.DEVICE)
     def forward(self, x, y_surface, y_texture):
-        x = self.conv(x)
+        x = self.conv0(x)
         x = self.cond_batchnorm(x, y_surface, y_texture)
         x = self.relu(x)
+        x = self.conv1(x)
         return x
 
 class Up2(nn.Module):
@@ -87,9 +94,10 @@ class Up2(nn.Module):
         self.conv0 = nn.Conv2d(num_features*2, num_features*2, kernel_size=3, stride=1, padding=1, padding_mode=padding_mode, device=config.DEVICE)
         self.cond_batchnorm0 = ConditionalBatchNorm2d(num_features*2, dim_embed)
         self.relu0 = nn.LeakyReLU(negative_slope=0.2, inplace=True)
-        self.conv1 = nn.Conv2d(num_features*2, num_features, kernel_size=3, stride=1, padding=1, padding_mode=padding_mode, device=config.DEVICE)
+        self.conv1 = nn.Conv2d(num_features*4, num_features, kernel_size=3, stride=1, padding=1, padding_mode=padding_mode, device=config.DEVICE)
         self.cond_batchnorm1 = ConditionalBatchNorm2d(num_features, dim_embed)
         self.relu1 = nn.LeakyReLU(negative_slope=0.2, inplace=True)
+        self.conv2 = nn.Conv2d(num_features*2, num_features, kernel_size=3, stride=1, padding=1, padding_mode=padding_mode, device=config.DEVICE)
     def forward(self, x, y_surface, y_texture):
         x = self.conv0(x)
         x = self.cond_batchnorm0(x, y_surface, y_texture)
@@ -97,6 +105,7 @@ class Up2(nn.Module):
         x = self.conv1(x)
         x = self.cond_batchnorm1(x, y_surface, y_texture)
         x = self.relu1(x)
+        x = self.conv2(x)
         return x
 
 class Last(nn.Module):
@@ -110,13 +119,13 @@ class Last(nn.Module):
         #     nn.Conv2d(num_features, out_channels, kernel_size=7, stride=1, padding=3, padding_mode=self.padding_mode)
         # )
         super().__init__()
-        self.cond_batchnorm = ConditionalBatchNorm2d(num_features, dim_embed)
         self.conv0 = nn.Conv2d(num_features, num_features, kernel_size=3, stride=1, padding=1, padding_mode=padding_mode, device=config.DEVICE)
+        self.cond_batchnorm = ConditionalBatchNorm2d(num_features, dim_embed)
         self.relu = nn.LeakyReLU(negative_slope=0.2, inplace=True)
-        self.conv1 = nn.Conv2d(num_features, out_channels, kernel_size=7, stride=1, padding=3, padding_mode=padding_mode, device=config.DEVICE)
+        self.conv1 = nn.Conv2d(2*num_features, out_channels, kernel_size=7, stride=1, padding=3, padding_mode=padding_mode, device=config.DEVICE)
     def forward(self, x, y_surface, y_texture):
-        x = self.cond_batchnorm(x, y_surface, y_texture)
         x = self.conv0(x)
+        x = self.cond_batchnorm(x, y_surface, y_texture)
         x = self.relu(x)
         x = self.conv1(x)
         return x
@@ -180,95 +189,4 @@ class Generator(nn.Module):
         x = self.last(x + x1, y_surface, y_texture) # B, 3, 256, 256
         #TanH
         return torch.tanh(x)
-
-class Gray_Generator(nn.Module):
-    def __init__(self, img_channels=3, out_channels=6, num_features=32, num_residuals=4, padding_mode="zeros"):
-        super().__init__()
-        self.padding_mode = padding_mode
-
-        self.initial_down = nn.Sequential(
-            #k7n32s1
-            nn.Conv2d(img_channels, num_features, kernel_size=7, stride=1, padding=3, padding_mode=self.padding_mode),
-            nn.LeakyReLU(negative_slope=0.2, inplace=True),
-        )
-
-        #Down-convolution
-        self.down1 = nn.Sequential(
-            #k3n32s2
-            nn.Conv2d(num_features, num_features, kernel_size=3, stride=2, padding=1, padding_mode=self.padding_mode),
-            nn.LeakyReLU(negative_slope=0.2, inplace=True),
-
-            #k3n64s1
-            nn.Conv2d(num_features, num_features*2, kernel_size=3, stride=1, padding=1, padding_mode=self.padding_mode),
-            nn.LeakyReLU(negative_slope=0.2, inplace=True),
-        )
-
-        self.down2 = nn.Sequential(
-            #k3n64s2
-            nn.Conv2d(num_features*2, num_features*2, kernel_size=3, stride=2, padding=1, padding_mode=self.padding_mode),
-            nn.LeakyReLU(negative_slope=0.2, inplace=True),
-
-            #k3n128s1
-            nn.Conv2d(num_features*2, num_features*4, kernel_size=3, stride=1, padding=1, padding_mode=self.padding_mode),
-            nn.LeakyReLU(negative_slope=0.2, inplace=True),
-        )
-
-        #Bottleneck: 4 residual blocks => 4 times [K3n128s1]
-        self.res_blocks = nn.Sequential(
-            *[ResidualBlock(num_features*4, kernel_size=3, stride=1, padding=1, padding_mode=self.padding_mode) for _ in range(num_residuals)]
-        )
-
-        #Up-convolution
-        self.up1 = nn.Sequential(
-            #k3n128s1 (should be k3n64s1?)
-            nn.Conv2d(num_features*4, num_features*2, kernel_size=3, stride=1, padding=1, padding_mode=self.padding_mode),
-            nn.LeakyReLU(negative_slope=0.2, inplace=True),
-        )
-
-        self.up2 = nn.Sequential(
-            #k3n64s1
-            nn.Conv2d(num_features*2, num_features*2, kernel_size=3, stride=1, padding=1, padding_mode=self.padding_mode),
-            nn.LeakyReLU(negative_slope=0.2, inplace=True),
-            #k3n64s1 (should be k3n32s1?)
-            nn.Conv2d(num_features*2, num_features, kernel_size=3, stride=1, padding=1, padding_mode=self.padding_mode),
-            nn.LeakyReLU(negative_slope=0.2, inplace=True),
-        )
-
-        self.last = nn.Sequential(
-            #k3n32s1
-            nn.Conv2d(num_features, num_features, kernel_size=3, stride=1, padding=1, padding_mode=self.padding_mode),
-            nn.LeakyReLU(negative_slope=0.2, inplace=True),
-            #k7n3s1
-            nn.Conv2d(num_features, out_channels, kernel_size=7, stride=1, padding=3, padding_mode=self.padding_mode)
-        )
-
-    def forward(self, x):
-        x1 = self.initial_down(x)
-        x2 = self.down1(x1)
-        x = self.down2(x2)
-        x = self.res_blocks(x)
-        x = self.up1(x)
-        #Resize Bilinear
-        x = F.interpolate(x, scale_factor=2, mode='bilinear', align_corners = False)
-        x = self.up2(x + x2) 
-        #Resize Bilinear
-        x = F.interpolate(x, scale_factor=2, mode='bilinear', align_corners = False)
-        x = self.last(x + x1)
-        #TanH
-        return torch.tanh(x)
-
-        
-def test():
-    img_channels = 1
-    out_channels = 2
-    img_size = 4
-    x = torch.randn((1, img_channels, img_size, img_size))
-    gen = Gray_Generator(img_channels=img_channels, out_channels=out_channels)
-    res = gen(x)
-    print(res.shape)
-    print(res)
-
-if __name__ == "__main__":
-    test()
-
 

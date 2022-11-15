@@ -3,9 +3,9 @@ import albumentations as A
 from albumentations.pytorch import ToTensorV2
 import os
 
-DEVICE = "cuda:1" #if torch.cuda.is_available() else "cpu"
+DEVICE = "cuda:0" #if torch.cuda.is_available() else "cpu"
 
-PROJECT_NAME = "context12"
+PROJECT_NAME = "double_linear_batchnorm"
 
 #Folder Configuration:
 #=============================
