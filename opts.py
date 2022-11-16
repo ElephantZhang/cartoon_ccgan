@@ -1,4 +1,5 @@
 import argparse
+import config
 
 def parse_opts():
     parser = argparse.ArgumentParser()
@@ -28,9 +29,13 @@ def parse_opts():
     parser.add_argument('--lr_g_gan', type=float, default=2e-4, help='learning rate for generator')
     parser.add_argument('--lr_d_gan', type=float, default=1e-4, help='learning rate for discriminator')
     parser.add_argument('--dim_gan', type=int, default=128, help='Latent dimension of GAN')
-    parser.add_argument('--batch_size_disc', type=int, default=64)
-    parser.add_argument('--batch_size_gene', type=int, default=64)
-    parser.add_argument('--cGAN_num_classes', type=int, default=3, metavar='N') #bin label into cGAN_num_classes
+    parser.add_argument('--batch_size_disc', type=int, default=56)
+    parser.add_argument('--batch_size_gene', type=int, default=56)
+    parser.add_argument("--cuda", type=str, default="cuda")
+    parser.add_argument("--project_name", type=str, default="project_name")
+    parser.add_argument("--lambda_surface", type=float, default=0.1)
+    parser.add_argument("--lambda_texture", type=float, default=1)
+    parser.add_argument("--lambda_context", type=float, default=2.0)
 
     parser.add_argument('--kernel_sigma', type=float, default=-1.0,
                         help='If kernel_sigma<0, then use rule-of-thumb formula to compute the sigma.')

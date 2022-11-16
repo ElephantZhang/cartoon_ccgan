@@ -5,7 +5,7 @@ import os
 
 DEVICE = "cuda:0" #if torch.cuda.is_available() else "cpu"
 
-PROJECT_NAME = "double_linear_batchnorm"
+PROJECT_NAME = "single_feature"
 
 #Folder Configuration:
 #=============================

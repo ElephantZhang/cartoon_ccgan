@@ -19,7 +19,7 @@ preprocess = transforms.Compose([
 ])
 
 #-------------------------------------------------------------
-def train_net_embed(net, extracotr_name, extractor, train_images, train_lables, epochs=200, resume_epoch = 0, lr_base=0.01, lr_decay_factor=0.1, lr_decay_epochs=[80, 140], weight_decay=1e-4, path_to_ckpt = None):
+def train_net_embed(net, train_images, train_lables, epochs=200, resume_epoch = 0, lr_base=0.01, lr_decay_factor=0.1, lr_decay_epochs=[80, 140], weight_decay=1e-4, path_to_ckpt = None):
 
     ''' learning rate decay '''
     def adjust_learning_rate_1(optimizer, epoch):
@@ -35,7 +35,7 @@ def train_net_embed(net, extracotr_name, extractor, train_images, train_lables, 
         for param_group in optimizer.param_groups:
             param_group['lr'] = lr
 
-    net = net.cuda()
+    net = net.to(config.DEVICE)
     criterion = nn.MSELoss()
     optimizer = torch.optim.SGD(net.parameters(), lr = lr_base, momentum= 0.9, weight_decay=weight_decay)
 
@@ -64,12 +64,6 @@ def train_net_embed(net, extracotr_name, extractor, train_images, train_lables, 
             for k in range(0, batch_train_images.shape[0]):
                 tmp.append(preprocess(batch_train_images[k]).unsqueeze(0))
             batch_train_images = torch.cat(tmp, dim = 0).type(torch.float).to(config.DEVICE)
-            if extracotr_name == "surface":
-                batch_train_images = extractor.process(batch_train_images, batch_train_images, r=5, eps=2e-1)
-            elif extracotr_name == "texture":
-                batch_train_images, = extractor.process(batch_train_images)
-            else:
-                assert False
 
             batch_train_labels = train_lables[batch_images_indices]
             batch_train_labels = torch.from_numpy(batch_train_labels).type(torch.float).to(config.DEVICE).view(-1,1)
@@ -158,12 +152,12 @@ def train_net_y2h(unique_labels_norm, net_y2h, net_embed, epochs=500, lr_base=0.
         adjust_learning_rate_2(optimizer_y2h, epoch)
         for _, batch_labels in enumerate(trainloader):
 
-            batch_labels = batch_labels.type(torch.float).view(-1,1).cuda()
+            batch_labels = batch_labels.type(torch.float).view(-1,1).to(config.DEVICE)
 
             # generate noises which will be added to labels
             batch_size_curr = len(batch_labels)
             batch_gamma = np.random.normal(0, 0.2, batch_size_curr)
-            batch_gamma = torch.from_numpy(batch_gamma).view(-1,1).type(torch.float).cuda()
+            batch_gamma = torch.from_numpy(batch_gamma).view(-1,1).type(torch.float).to(config.DEVICE)
 
             # add noise to labels
             batch_labels_noise = torch.clamp(batch_labels+batch_gamma, 0.0, 1.0)
