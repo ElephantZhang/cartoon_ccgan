@@ -38,6 +38,14 @@ from texture_extractor import ColorShift
 base_lr_x2y = 0.01
 base_lr_y2h = 0.01
 
+args = parse_opts()
+config.DEVICE = args.cuda
+config.PROJECT_NAME = args.project_name
+config.BATCH_SIZE = args.batch_size_disc
+config.LAMBDA_SURFACE = args.lambda_surface
+config.LAMBDA_TEXTURE = args.lambda_texture
+config.LAMBDA_CONTENT = args.lambda_context
+
 def load_images_from_dir(path): # return as numpy
     index = 0
     res = None

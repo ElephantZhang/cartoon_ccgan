@@ -38,6 +38,11 @@ def parse_opts():
     parser.add_argument('--kappa', type=float, default=-1)
     parser.add_argument('--nonzero_soft_weight_threshold', type=float, default=1e-3,
                         help='threshold for determining nonzero weights for SVDL; we neglect images with too small weights')
+    parser.add_argument("--cuda", type=str, default="cuda")
+    parser.add_argument("--project_name", type=str, default="project_name")
+    parser.add_argument("--lambda_surface", type=float, default=0.1)
+    parser.add_argument("--lambda_texture", type=float, default=1)
+    parser.add_argument("--lambda_context", type=float, default=2.0)
 
 
     ''' Sampling and Evaluation '''

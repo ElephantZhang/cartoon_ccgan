@@ -20,7 +20,12 @@ sw = SummaryWriter(config.PROJECT_NAME)
 
 ''' Settings '''
 args = parse_opts()
-# device = "cuda:1"
+config.DEVICE = args.cuda
+config.PROJECT_NAME = args.project_name
+config.BATCH_SIZE = args.batch_size_disc
+config.LAMBDA_SURFACE = args.lambda_surface
+config.LAMBDA_TEXTURE = args.lambda_texture
+config.LAMBDA_CONTENT = args.lambda_context
 
 # some parameters in opts
 niters = args.niters_gan
@@ -73,6 +78,7 @@ def train_CcGAN(kernel_sigma, kappa, photos, train_images, train_labels, gen, di
     '''
     Note that train_images are not normalized to [-1,1]
     '''
+    print("lambda surface, texture, contexnt", config.LAMBDA_SURFACE, config.LAMBDA_TEXTURE, config.LAMBDA_CONTENT)
     l1_loss = nn.L1Loss()    
 
     gen = gen.to(config.DEVICE)
