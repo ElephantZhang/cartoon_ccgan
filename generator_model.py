@@ -82,7 +82,8 @@ class Generator(nn.Module):
         )
 
     def forward(self, x, y): # y is a scale
-        x = torch.cat((x, y.repeat_interleave(x.shape[2], y.shape[3]).reshape(-1,1,x.shape[2], y.shape[3])), dim=1)
+        B, C, W, H = x.shape
+        x = torch.cat((x, y.repeat_interleave(W * H).reshape(-1,1,W,H)), dim=1)
         x1 = self.initial_down(x)
         x2 = self.down1(x1)
         x = self.down2(x2)

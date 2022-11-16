@@ -1,4 +1,6 @@
 data/
+pytorch_colors/
+single_feature/
 saved_images/
 saved_models/
 __pycache__/

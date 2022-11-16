@@ -94,13 +94,17 @@ def date_creator():
     #     np.save(f, style_labels)
 
 def kyoma_loder():
-    with open("./data/hayao_hosoda_shinkai.npy", "rb") as f:
-        style_images = np.load(f)
-    print("loaded style images")
-    
-    with open("./data/hayao_hosoda_shinkai_labels.npy", "rb") as f:
-        style_labels = np.load(f)
-    print("loaded style labels")
+    with open("./data/isometric_hayao.npy", "rb") as f:
+        style0_images = np.load(f)
+    with open("./data/isometric_shinkai.npy", "rb") as f:
+        style2_images = np.load(f)
+    style_images = np.concatenate((style0_images, style2_images), axis=0)
+
+    with open("./data/isometric_hayao_labels.npy", "rb") as f:
+        style0_labels = np.load(f)
+    with open("./data/isometric_shinkai_labels.npy", "rb") as f:
+        style2_labels = np.load(f)
+    style_labels = np.concatenate((style0_labels, style2_labels), axis=0)
 
     with open("./data/landscape_photos.npy", "rb") as f:
         photo_images = np.load(f)
@@ -109,42 +113,41 @@ def kyoma_loder():
     return style_images, style_labels, photo_images
 
 if __name__ == "__main__":
-    date_creator()
-    # style_images, style_labels, photo_images = kyoma_loder()
+    style_images, style_labels, photo_images = kyoma_loder()
 
-    # gen = Generator(img_channels=4)
-    # disc_surface = cont_cond_cnn_discriminator()
-    # # gen = nn.DataParallel(gen)
-    # # disc_surface = nn.DataParallel(disc_surface)
-    # # disc_texture = nn.DataParallel(disc_texture)
+    gen = Generator(img_channels=4)
+    disc_surface = cont_cond_cnn_discriminator()
+    # gen = nn.DataParallel(gen)
+    # disc_surface = nn.DataParallel(disc_surface)
+    # disc_texture = nn.DataParallel(disc_texture)
     
-    # VGG19 = VGGNet(in_channels=3, VGGtype="VGG19", init_weights=config.VGG_WEIGHTS, batch_norm=False, feature_mode=True)
-    # VGG19 = VGG19.to(config.DEVICE)
-    # VGG19.eval()
+    VGG19 = VGGNet(in_channels=3, VGGtype="VGG19", init_weights=config.VGG_WEIGHTS, batch_norm=False, feature_mode=True)
+    VGG19 = VGG19.to(config.DEVICE)
+    VGG19.eval()
 
-    # if args.kernel_sigma<0:
-    #     std_label = np.std(style_labels)
-    #     args.kernel_sigma =1.06*std_label*(len(style_labels))**(-1/5)
-    #     print("\n Use rule-of-thumb formula to compute kernel_sigma >>>")
-    #     print("\n The std of {} labels is {} so the kernel sigma is {}".format(len(style_labels), std_label, args.kernel_sigma))
+    if args.kernel_sigma<0:
+        std_label = np.std(style_labels)
+        args.kernel_sigma =1.06*std_label*(len(style_labels))**(-1/5)
+        print("\n Use rule-of-thumb formula to compute kernel_sigma >>>")
+        print("\n The std of {} labels is {} so the kernel sigma is {}".format(len(style_labels), std_label, args.kernel_sigma))
     
-    # unique_labels_norm = np.sort(np.array(list(set(style_labels))))
-    # if args.kappa<0:
-    #     n_unique = len(unique_labels_norm)
+    unique_labels_norm = np.sort(np.array(list(set(style_labels))))
+    if args.kappa<0:
+        n_unique = len(unique_labels_norm)
 
-    #     diff_list = []
-    #     for i in range(1,n_unique):
-    #         diff_list.append(unique_labels_norm[i] - unique_labels_norm[i-1])
-    #     kappa_base = np.abs(args.kappa)*np.max(np.array(diff_list))
+        diff_list = []
+        for i in range(1,n_unique):
+            diff_list.append(unique_labels_norm[i] - unique_labels_norm[i-1])
+        kappa_base = np.abs(args.kappa)*np.max(np.array(diff_list))
 
-    #     if args.threshold_type=="hard":
-    #         args.kappa = kappa_base
-    #     else:
-    #         args.kappa = 1/kappa_base**2
+        if args.threshold_type=="hard":
+            args.kappa = kappa_base
+        else:
+            args.kappa = 1/kappa_base**2
 
-    # gen, disc_surface, disc_texure = train_CcGAN(args.kernel_sigma, args.kappa, photo_images, style_images, style_labels, gen, disc_surface, VGG19, save_images_folder="./saved_images/"+config.PROJECT_NAME, save_models_folder = "./saved_models/"+config.PROJECT_NAME)
+    gen, disc_surface, disc_texure = train_CcGAN(args.kernel_sigma, args.kappa, photo_images, style_images, style_labels, gen, disc_surface, VGG19, save_images_folder="./saved_images/"+config.PROJECT_NAME, save_models_folder = "./saved_models/"+config.PROJECT_NAME)
 
-    # torch.save({
-    #     'gen_state_dict': gen.state_dict(),
-    #     'disc_surface_state_dict': disc_surface.state_dict(),
-    # }, "./saved_models/" + config.PROJECT_NAME + "/kyoma_Test_CcGAN.pth")
+    torch.save({
+        'gen_state_dict': gen.state_dict(),
+        'disc_surface_state_dict': disc_surface.state_dict(),
+    }, "./saved_models/" + config.PROJECT_NAME + "/kyoma_Test_CcGAN.pth")
