@@ -104,8 +104,7 @@ def train_CcGAN(kernel_sigma, kappa, photos, train_images, train_labels, gen, di
         print("load discriminator from", save_file)
         
         torch.set_rng_state(checkpoint['rng_state'])
-    
-    if os.path.isfile(save_models_folder + "/CcGAN_pretrained_gen.pth"):
+    elif os.path.isfile(save_models_folder + "/CcGAN_pretrained_gen.pth"):
         save_file = save_models_folder + "/CcGAN_pretrained_gen.pth"
         checkpoint = torch.load(save_file)
         gen.load_state_dict(checkpoint['gen_state_dict'])
