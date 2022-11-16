@@ -34,9 +34,13 @@ from train_net_for_label_embed import train_net_y2h
 from surface_extractor import GuidedFilter
 from texture_extractor import ColorShift
 
-# Embedding
-base_lr_x2y = 0.01
-base_lr_y2h = 0.01
+args = parse_opts()
+config.DEVICE = args.cuda
+config.PROJECT_NAME = args.project_name
+config.BATCH_SIZE = args.batch_size_disc
+config.LAMBDA_SURFACE = args.lambda_surface
+config.LAMBDA_TEXTURE = args.lambda_texture
+config.LAMBDA_CONTENT = args.lambda_context
 
 def load_images_from_dir(path): # return as numpy
     index = 0
@@ -53,95 +57,94 @@ def load_images_from_dir(path): # return as numpy
             index = index + 1
     return res
 
+def date_creator():
+    style0_images = load_images_from_dir("/home/zhangyushan/kyoma/cartoon_ccgan/data/hayao")
+    style0_labels = np.full((style0_images.shape[0]), 0.)
+    print("loaded hayao")
+
+    with open("./data/isometric_hayao.npy", "wb") as f:
+        np.save(f, style0_images)
+    with open("./data/isometric_hayao_labels.npy", "wb") as f:
+        np.save(f, style0_labels)
+
+    style1_images = load_images_from_dir("/home/zhangyushan/kyoma/cartoon_ccgan/data/hosoda")
+    style1_labels = np.full((style1_images.shape[0]), 0.5)
+    print("loaded hosoda")
+    
+    with open("./data/isometric_hosoda.npy", "wb") as f:
+        np.save(f, style1_images)
+    with open("./data/isometric_hosoda_labels.npy", "wb") as f:
+        np.save(f, style1_labels)
+
+    style2_images = load_images_from_dir("/home/zhangyushan/kyoma/cartoon_ccgan/data/shinkai")
+    style2_labels = np.full((style2_images.shape[0]), 1.)
+    print("loaded shinkai")
+
+    with open("./data/isometric_shinkai.npy", "wb") as f:
+        np.save(f, style2_images)
+    with open("./data/isometric_shinkai_labels.npy", "wb") as f:
+        np.save(f, style2_labels)
+
+    # style_images = np.concatenate((style0_images, style1_images, style2_images), axis=0)
+    # style_labels = np.concatenate((style0_labels, style1_labels, style2_labels), axis=0)
+
+    # with open("./data/isometric_hayao_hosoda_shinkai.npy", "wb") as f:
+    #     np.save(f, style_images)
+    # with open("./data/isometric_hayao_hosoda_shinkai_labels.npy", "wb") as f:
+    #     np.save(f, style_labels)
+
 def kyoma_loder():
-    with open("/home/zhangyushan/kyoma/cartoon_CcGAN/data/hayao_hosoda_shinkai.npy", "rb") as f:
+    with open("./data/hayao_hosoda_shinkai.npy", "rb") as f:
         style_images = np.load(f)
     print("loaded style images")
     
-    with open("/home/zhangyushan/kyoma/cartoon_CcGAN/data/hayao_hosoda_shinkai_labels.npy", "rb") as f:
+    with open("./data/hayao_hosoda_shinkai_labels.npy", "rb") as f:
         style_labels = np.load(f)
     print("loaded style labels")
 
-    with open("/home/zhangyushan/kyoma/cartoon_CcGAN/data/landscape_photos.npy", "rb") as f:
+    with open("./data/landscape_photos.npy", "rb") as f:
         photo_images = np.load(f)
     print("loaded photos")
 
     return style_images, style_labels, photo_images
 
-def get_net_y2h(extracotr_name, style_images, style_labels):
-    print("Pretrain net_embed: x2h+h2y")
-    print("\n Start training CNN for label embedding >>>")
-    net_embed = ResNet34_embed(dim_embed=config.dim_embed)
-    net_embed = net_embed.to(config.DEVICE)
-    # net_embed = nn.DataParallel(net_embed)
-
-    net_y2h = model_y2h(dim_embed=config.dim_embed)
-    net_y2h = net_y2h.to(config.DEVICE)
-    # net_y2h = nn.DataParallel(net_y2h)
-
-    if not os.path.isfile(extracotr_name+"_net_embed_ckpt.pth"):
-        net_embed = train_net_embed(net=net_embed, train_images=style_images, train_lables=style_labels, path_to_ckpt = "./saved_embed_models/")
-        # save model
-        torch.save({
-            'net_state_dict': net_embed.state_dict(),
-        }, extracotr_name+"_net_embed_ckpt.pth")
-    else:
-        checkpoint = torch.load(extracotr_name+"_net_embed_ckpt.pth")
-        net_embed.load_state_dict(checkpoint['net_state_dict'])
-        print("load net_embed from", extracotr_name+"_net_embed_ckpt.pth")
-
-    if not os.path.isfile(extracotr_name+"_net_y2h_ckpt.pth"):
-        print("\n Start training net_y2h >>>")
-        unique_labels_norm = np.sort(np.array(list(set(style_labels))))
-        net_y2h = train_net_y2h(unique_labels_norm, net_y2h, net_embed)
-        # save model
-        torch.save({
-            'net_state_dict': net_y2h.state_dict(),
-        }, extracotr_name+"_net_y2h_ckpt.pth")
-    else:
-        checkpoint = torch.load(extracotr_name+"_net_y2h_ckpt.pth")
-        net_y2h.load_state_dict(checkpoint['net_state_dict'])
-    return net_y2h
-
-
 if __name__ == "__main__":
-    style_images, style_labels, photo_images = kyoma_loder()
+    date_creator()
+    # style_images, style_labels, photo_images = kyoma_loder()
 
-    net_y2h_surface = get_net_y2h("origin", style_images, style_labels)
-
-    gen = Generator(in_channels=3)
-    disc_surface = CcGAN_SAGAN_Discriminator(dim_embed=config.dim_embed)
-    # gen = nn.DataParallel(gen)
-    # disc_surface = nn.DataParallel(disc_surface)
-    # disc_texture = nn.DataParallel(disc_texture)
+    # gen = Generator(img_channels=4)
+    # disc_surface = cont_cond_cnn_discriminator()
+    # # gen = nn.DataParallel(gen)
+    # # disc_surface = nn.DataParallel(disc_surface)
+    # # disc_texture = nn.DataParallel(disc_texture)
     
-    VGG19 = VGGNet(in_channels=3, VGGtype="VGG19", init_weights=config.VGG_WEIGHTS, batch_norm=False, feature_mode=True)
-    VGG19 = VGG19.to(config.DEVICE)
-    VGG19.eval()
+    # VGG19 = VGGNet(in_channels=3, VGGtype="VGG19", init_weights=config.VGG_WEIGHTS, batch_norm=False, feature_mode=True)
+    # VGG19 = VGG19.to(config.DEVICE)
+    # VGG19.eval()
 
-    if args.kernel_sigma<0:
-        std_label = np.std(style_labels)
-        args.kernel_sigma =1.06*std_label*(len(style_labels))**(-1/5)
-        print("\n Use rule-of-thumb formula to compute kernel_sigma >>>")
-        print("\n The std of {} labels is {} so the kernel sigma is {}".format(len(style_labels), std_label, args.kernel_sigma))
+    # if args.kernel_sigma<0:
+    #     std_label = np.std(style_labels)
+    #     args.kernel_sigma =1.06*std_label*(len(style_labels))**(-1/5)
+    #     print("\n Use rule-of-thumb formula to compute kernel_sigma >>>")
+    #     print("\n The std of {} labels is {} so the kernel sigma is {}".format(len(style_labels), std_label, args.kernel_sigma))
     
-    unique_labels_norm = np.sort(np.array(list(set(style_labels))))
-    if args.kappa<0:
-        n_unique = len(unique_labels_norm)
+    # unique_labels_norm = np.sort(np.array(list(set(style_labels))))
+    # if args.kappa<0:
+    #     n_unique = len(unique_labels_norm)
 
-        diff_list = []
-        for i in range(1,n_unique):
-            diff_list.append(unique_labels_norm[i] - unique_labels_norm[i-1])
-        kappa_base = np.abs(args.kappa)*np.max(np.array(diff_list))
+    #     diff_list = []
+    #     for i in range(1,n_unique):
+    #         diff_list.append(unique_labels_norm[i] - unique_labels_norm[i-1])
+    #     kappa_base = np.abs(args.kappa)*np.max(np.array(diff_list))
 
-        if args.threshold_type=="hard":
-            args.kappa = kappa_base
-        else:
-            args.kappa = 1/kappa_base**2
+    #     if args.threshold_type=="hard":
+    #         args.kappa = kappa_base
+    #     else:
+    #         args.kappa = 1/kappa_base**2
 
-    gen, disc_surface, disc_texure = train_CcGAN(args.kernel_sigma, args.kappa, photo_images, style_images, style_labels, gen, disc_surface, net_y2h_surface, VGG19, save_images_folder="./saved_images/"+config.PROJECT_NAME, save_models_folder = "./saved_models/"+config.PROJECT_NAME)
+    # gen, disc_surface, disc_texure = train_CcGAN(args.kernel_sigma, args.kappa, photo_images, style_images, style_labels, gen, disc_surface, VGG19, save_images_folder="./saved_images/"+config.PROJECT_NAME, save_models_folder = "./saved_models/"+config.PROJECT_NAME)
 
-    torch.save({
-        'gen_state_dict': gen.state_dict(),
-        'disc_surface_state_dict': disc_surface.state_dict(),
-    }, "/home/zhangyushan/kyoma/cartoon_CcGAN/saved_models/context12/kyoma_Test_CcGAN.pth")
+    # torch.save({
+    #     'gen_state_dict': gen.state_dict(),
+    #     'disc_surface_state_dict': disc_surface.state_dict(),
+    # }, "./saved_models/" + config.PROJECT_NAME + "/kyoma_Test_CcGAN.pth")

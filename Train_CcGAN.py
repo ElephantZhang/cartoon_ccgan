@@ -51,7 +51,7 @@ preprocess = transforms.Compose([
         std=[0.5, 0.5, 0.5]),
 ])
 
-def pretrain_gen(netG, net_y2h_surface, opt_gen, photos, l1_loss, VGG):
+def pretrain_gen(netG, opt_gen, photos, l1_loss, VGG):
     for epoch in range(0, config.NUM_PRETRAIN_EPOCHS):
         z = photos[np.random.choice(photos.shape[0], batch_size_max)]
         tmp = []
@@ -61,7 +61,7 @@ def pretrain_gen(netG, net_y2h_surface, opt_gen, photos, l1_loss, VGG):
 
         batch_fake_images = netG(
             z, 
-            net_y2h_surface(torch.rand(batch_size_max).to(config.DEVICE)), 
+            torch.rand(batch_size_max).to(config.DEVICE), 
         )
         photos_vgg = VGG(z)
         fake_vgg = VGG(batch_fake_images)
@@ -73,7 +73,7 @@ def pretrain_gen(netG, net_y2h_surface, opt_gen, photos, l1_loss, VGG):
         if((epoch+1)%100 == 0):
             print('[%d/%d] - Recon loss: %.8f' % ((epoch + 1), config.NUM_PRETRAIN_EPOCHS, reconstruction_loss.item()))
 
-def train_CcGAN(kernel_sigma, kappa, photos, train_images, train_labels, gen, disc_surface, net_y2h_surface, VGG, save_images_folder, save_models_folder = None, clip_label=False):
+def train_CcGAN(kernel_sigma, kappa, photos, train_images, train_labels, gen, disc_surface, VGG, save_images_folder, save_models_folder = None, clip_label=False):
     '''
     Note that train_images are not normalized to [-1,1]
     '''
@@ -104,7 +104,7 @@ def train_CcGAN(kernel_sigma, kappa, photos, train_images, train_labels, gen, di
         optimizerG.load_state_dict(checkpoint['optimizerG_state_dict'])
         print("load generator from", save_models_folder + "/CcGAN_pretrained_gen.pth")
     else:
-        pretrain_gen(gen, net_y2h_surface, optimizerG, photos, l1_loss, VGG)
+        pretrain_gen(gen, optimizerG, photos, l1_loss, VGG)
         save_file = save_models_folder + "/CcGAN_pretrained_gen.pth"
         os.makedirs(os.path.dirname(save_file), exist_ok=True)
         torch.save({
@@ -212,7 +212,7 @@ def train_CcGAN(kernel_sigma, kappa, photos, train_images, train_labels, gen, di
         for idx in range(0, batch_size_max):
             tmp.append(preprocess(z[idx]).unsqueeze(0))
         z = torch.cat(tmp, dim=0).to(config.DEVICE)
-        batch_fake_images = gen(z, net_y2h_surface(batch_fake_surface_labels))
+        batch_fake_images = gen(z, batch_fake_surface_labels)
 
         ## target labels on gpu
         batch_target_surface_labels = torch.from_numpy(batch_target_surface_labels).type(torch.float).to(config.DEVICE)
@@ -230,20 +230,14 @@ def train_CcGAN(kernel_sigma, kappa, photos, train_images, train_labels, gen, di
         # forward pass
         dis_real_surface = disc_surface(
             batch_real_surface_images, 
-            net_y2h_surface(batch_target_surface_labels)
+            batch_target_surface_labels
         )
         dis_fake_surface = disc_surface(
             batch_fake_images, 
-            net_y2h_surface(batch_target_surface_labels)
+            batch_target_surface_labels
         )
 
-        # use hinge loss type
-        d_loss_real_surface = torch.nn.ReLU()(1.0 - dis_real_surface)
-        d_loss_fake_surface = torch.nn.ReLU()(1.0 + dis_fake_surface)
-
-        d_surface_loss = torch.mean(real_surface_weights.view(-1) * d_loss_real_surface.view(-1)) + torch.mean(fake_surface_weights.view(-1) * d_loss_fake_surface.view(-1))
-
-        d_loss = d_surface_loss
+        d_loss = - torch.mean(real_surface_weights.view(-1) * torch.log(dis_real_surface.view(-1)+1e-20)) - torch.mean(fake_surface_weights.view(-1) * torch.log(1 - dis_fake_surface.view(-1)+1e-20))
 
         optimizerD.zero_grad()
         d_loss.backward()
@@ -265,7 +259,7 @@ def train_CcGAN(kernel_sigma, kappa, photos, train_images, train_labels, gen, di
             tmp.append(preprocess(sampled_photos[idx]).unsqueeze(0))
         z = torch.cat(tmp, dim = 0).to(config.DEVICE)
 
-        batch_fake_images = gen(z, net_y2h_surface(batch_target_surface_labels))
+        batch_fake_images = gen(z, batch_target_surface_labels)
         
         fake_image_vgg = VGG(batch_fake_images)
         real_image_vgg = VGG(z)
@@ -275,11 +269,11 @@ def train_CcGAN(kernel_sigma, kappa, photos, train_images, train_labels, gen, di
         # loss
         dis_surface = disc_surface(
             batch_fake_images,
-            net_y2h_surface(batch_target_surface_labels)
+            batch_target_surface_labels
         )
 
         # still, use hinge loss_type
-        g_surface_loss = - config.LAMBDA_SURFACE * dis_surface.mean()
+        g_surface_loss = - config.LAMBDA_SURFACE * torch.mean(torch.log(dis_surface+1e-20))
 
         g_loss = g_surface_loss + content_loss
 
@@ -295,10 +289,8 @@ def train_CcGAN(kernel_sigma, kappa, photos, train_images, train_labels, gen, di
             sw.add_scalar("G like loss", g_surface_loss.item(), niter)
             sw.add_scalar("content loss", content_loss.item(), niter)
             print (config.PROJECT_NAME + " CcGAN: [Iter %d/%d] [D loss: %.4e] [G loss: %.4e] [Time: %.4f]" % (niter+1, niters, d_loss.item(), g_loss.item(), timeit.default_timer()-start_time))
-            print ("[dis_real_surface: %.3f] [dis_fake_surface: %.3f]" % 
-                    (dis_real_surface.mean().item(), dis_fake_surface.mean().item()))
-            print ("[D like loss: %.4e] [G like loss: %.4e] [content loss: %.4e]" % 
-                    (d_surface_loss.item(), g_surface_loss.item(), content_loss.item()))
+            print ("[real prob: %.3f] [fake prob: %.3f] [content loss: %.4e]" % 
+                    (dis_real_surface.mean().item(), dis_fake_surface.mean().item(), content_loss.item()))
 
         if (niter+1) % 100 == 0:
             gen.eval()
@@ -311,7 +303,7 @@ def train_CcGAN(kernel_sigma, kappa, photos, train_images, train_labels, gen, di
                 z_test = torch.cat(tmp, dim=0).to(config.DEVICE)
                 tmp = []
                 for k in range(0, y_fixed.shape[0]):
-                    gen_img = gen(z_test, net_y2h_surface(y_fixed[k]))
+                    gen_img = gen(z_test, y_fixed[k])
                     gen_img = gen_img[0:1, :, :, :]
                     tmp.append(torch.cat((z_test[0:1,:,:,:],gen_img, gen_img), axis=3))
                 gen_imgs = torch.cat(tmp, dim=0)

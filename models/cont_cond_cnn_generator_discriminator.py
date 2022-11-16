@@ -177,11 +177,11 @@ class cont_cond_cnn_discriminator(nn.Module):
         self.discblock1 = nn.Sequential(
             FirstResBlockDiscriminator(channels, DISC_SIZE, stride=2, bias=True), #256--->128, channle 3-->256
             ResBlockDiscriminator(DISC_SIZE  , DISC_SIZE*2, stride=2, bias=True), #128--->64, channle 256-->512
-            ResBlockDiscriminator(DISC_SIZE*2  , DISC_SIZE*4, stride=2, bias=True), #64--->32, channle 512-->1024
+            ResBlockDiscriminator(DISC_SIZE*2  , DISC_SIZE*4, stride=4, bias=True), #64--->16, channle 512-->1024
         )
-        self.discblock2 = ResBlockDiscriminator(DISC_SIZE*4, DISC_SIZE*8, stride=2, bias=True) #32->16, 1024-->2048
+        self.discblock2 = ResBlockDiscriminator(DISC_SIZE*4, DISC_SIZE*8, stride=2, bias=True) #16->8, 1024-->2048
         self.discblock3 = nn.Sequential(
-            ResBlockDiscriminator(DISC_SIZE*8, DISC_SIZE*16, stride=4, bias=True), #16--->4; 2048-->4096
+            ResBlockDiscriminator(DISC_SIZE*8, DISC_SIZE*16, stride=2, bias=True), #8--->4; 2048-->4096
             nn.ReLU(),
         )
 
