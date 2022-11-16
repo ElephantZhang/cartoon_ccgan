@@ -79,6 +79,7 @@ def train_CcGAN(kernel_sigma, kappa, photos, train_images, train_labels, gen, di
     Note that train_images are not normalized to [-1,1]
     '''
     print("lambda surface, texture, contexnt", config.LAMBDA_SURFACE, config.LAMBDA_TEXTURE, config.LAMBDA_CONTENT)
+    print("lr_d, lr_g", lr_d, lr_g)
     l1_loss = nn.L1Loss()    
 
     gen = gen.to(config.DEVICE)
