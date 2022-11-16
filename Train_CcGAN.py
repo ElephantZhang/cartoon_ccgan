@@ -377,7 +377,7 @@ def train_CcGAN(kernel_sigma, kappa, photos, train_images, train_labels, gen, di
         if (niter+1) % 100 == 0:
             gen.eval()
             with torch.no_grad():
-                photo_sample_indices = np.random.randint(0, photos.shape[0], (2, )) # 2, 256, 256, 3
+                photo_sample_indices = np.random.randint(0, photos.shape[0], (1, )) # 2, 256, 256, 3
                 test_photo = photos[photo_sample_indices]
                 tmp = []
                 for k in range(0, test_photo.shape[0]):
