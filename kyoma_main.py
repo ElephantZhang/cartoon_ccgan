@@ -62,15 +62,19 @@ def load_images_from_dir(path): # return as numpy
     return res
 
 def kyoma_loder():
-    with open("/home/zhangyushan/kyoma/cartoon_CcGAN/data/hayao_hosoda_shinkai.npy", "rb") as f:
-        style_images = np.load(f)
-    print("loaded style images")
-    
-    with open("/home/zhangyushan/kyoma/cartoon_CcGAN/data/hayao_hosoda_shinkai_labels.npy", "rb") as f:
-        style_labels = np.load(f)
-    print("loaded style labels")
+    with open("./data/isometric_hayao.npy", "rb") as f:
+        style0_images = np.load(f)
+    with open("./data/isometric_hosoda.npy", "rb") as f:
+        style2_images = np.load(f)
+    style_images = np.concatenate((style0_images, style2_images), axis=0)
 
-    with open("/home/zhangyushan/kyoma/cartoon_CcGAN/data/landscape_photos.npy", "rb") as f:
+    with open("./data/isometric_hayao_labels.npy", "rb") as f:
+        style0_labels = np.load(f)
+    with open("./data/isometric_shinkai_labels.npy", "rb") as f:
+        style2_labels = np.load(f)
+    style_labels = np.concatenate((style0_labels, style2_labels), axis=0)
+
+    with open("./data/landscape_photos.npy", "rb") as f:
         photo_images = np.load(f)
     print("loaded photos")
 
