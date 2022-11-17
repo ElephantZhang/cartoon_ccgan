@@ -16,8 +16,6 @@ from opts import parse_opts
 
 from torch.utils.tensorboard import SummaryWriter
 
-sw = SummaryWriter(config.PROJECT_NAME)
-
 ''' Settings '''
 args = parse_opts()
 config.DEVICE = args.cuda
@@ -27,6 +25,7 @@ config.LAMBDA_SURFACE = args.lambda_surface
 config.LAMBDA_TEXTURE = args.lambda_texture
 config.LAMBDA_CONTENT = args.lambda_context
 
+sw = SummaryWriter(config.PROJECT_NAME)
 # some parameters in opts
 niters = args.niters_gan
 resume_niters = args.resume_niters_gan
