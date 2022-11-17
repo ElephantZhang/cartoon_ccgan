@@ -34,6 +34,15 @@ from train_net_for_label_embed import train_net_y2h
 from surface_extractor import GuidedFilter
 from texture_extractor import ColorShift
 
+args = parse_opts()
+config.DEVICE = args.cuda
+config.PROJECT_NAME = args.project_name
+config.BATCH_SIZE = args.batch_size_disc
+config.LAMBDA_SURFACE = args.lambda_surface
+config.LAMBDA_TEXTURE = args.lambda_texture
+config.LAMBDA_CONTENT = args.lambda_context
+
+
 # Embedding
 base_lr_x2y = 0.01
 base_lr_y2h = 0.01
