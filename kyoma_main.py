@@ -96,13 +96,13 @@ def date_creator():
 def kyoma_loder():
     with open("./data/isometric_hayao.npy", "rb") as f:
         style0_images = np.load(f)
-    with open("./data/isometric_shinkai.npy", "rb") as f:
-        style2_images = np.load(f)
-    style_images = np.concatenate((style0_images, style2_images), axis=0)
+    with open("./data/isometric_hosoda.npy", "rb") as f:
+        style1_images = np.load(f)
+    style_images = np.concatenate((style0_images, style1_images), axis=0)
 
     with open("./data/isometric_hayao_labels.npy", "rb") as f:
         style0_labels = np.load(f)
-    with open("./data/isometric_shinkai_labels.npy", "rb") as f:
+    with open("./data/isometric_shinkai_labels.npy", "rb") as f: # set hosdao labels to 1.0
         style2_labels = np.load(f)
     style_labels = np.concatenate((style0_labels, style2_labels), axis=0)
 
