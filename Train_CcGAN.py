@@ -10,7 +10,10 @@ from torchvision import transforms
 import itertools
 from surface_extractor import GuidedFilter
 from texture_extractor import ColorShift
+from structure_extractor import SuperPixel
+from losses import VariationLoss
 
+from whitebox_utils import save_training_images
 from utils import *
 from opts import parse_opts
 
@@ -72,12 +75,12 @@ def pretrain_gen(netG, opt_gen, photos, l1_loss, VGG):
         if((epoch+1)%100 == 0):
             print('[%d/%d] - Recon loss: %.8f' % ((epoch + 1), config.NUM_PRETRAIN_EPOCHS, reconstruction_loss.item()))
 
-def train_CcGAN(kernel_sigma, kappa, photos, train_images, train_labels, gen, disc_surface, disc_texture, VGG, save_images_folder, save_models_folder = None, clip_label=False):
+def train_CcGAN(kernel_sigma, kappa, photos, train_cartoons, train_labels, gen, disc_surface, disc_texture, VGG, save_images_folder, save_models_folder = None, clip_label=False):
     '''
-    Note that train_images are not normalized to [-1,1]
+    Note that train_cartoons are not normalized to [-1,1]
     Note here surface is just the original pic, no smoother
     '''
-    print("photos, train_images, train_labels", photos.shape, train_images.shape, train_labels.shape)
+    print("photos, train_cartoons, train_labels", photos.shape, train_cartoons.shape, train_labels.shape)
     print("lr_d, lr_g", lr_d, lr_g)
     l1_loss = nn.L1Loss()    
 
@@ -88,7 +91,11 @@ def train_CcGAN(kernel_sigma, kappa, photos, train_images, train_labels, gen, di
     optimizerG = torch.optim.Adam(gen.parameters(), lr=lr_g, betas=(0.5, 0.999))
     optimizerD = torch.optim.Adam(itertools.chain(disc_surface.parameters(),disc_texture.parameters()), lr=lr_d, betas=(0.5, 0.999))
 
+    extract_surface = GuidedFilter()
     extract_texture = ColorShift(config.DEVICE, mode='uniform', image_format='rgb')
+    extract_structure = SuperPixel(config.DEVICE, mode='simple')
+    var_loss = VariationLoss(1)
+    mse = nn.MSELoss()
 
     if save_models_folder is not None and resume_niters>0:
         save_file = save_models_folder + "/CcGAN_{}_checkpoint_intrain/CcGAN_checkpoint_niters_{}.pth".format(threshold_type, resume_niters)
@@ -194,18 +201,18 @@ def train_CcGAN(kernel_sigma, kappa, photos, train_images, train_labels, gen, di
         #end for j
 
         ## draw the real image batch from the training set
-        batch_real_surface_images = train_images[batch_real_surface_indx]
+        batch_real_cartoons = train_cartoons[batch_real_surface_indx]
         
-        assert batch_real_surface_images.max()>1
+        assert batch_real_cartoons.max()>1
 
         batch_real_surface_labels = train_labels[batch_real_surface_indx]
         batch_real_surface_labels = torch.from_numpy(batch_real_surface_labels).type(torch.float).to(config.DEVICE)
 
         ## normalize real images to [-1,1]
         tmp = []
-        for idx in range(0, batch_real_surface_images.shape[0]):
-            tmp.append(preprocess(batch_real_surface_images[idx]).unsqueeze(0))
-        batch_real_surface_images = torch.cat(tmp, dim=0).to(config.DEVICE)
+        for idx in range(0, batch_real_cartoons.shape[0]):
+            tmp.append(preprocess(batch_real_cartoons[idx]).unsqueeze(0))
+        batch_real_cartoons = torch.cat(tmp, dim=0).to(config.DEVICE)
 
 
         ## generate the fake image batch
@@ -231,24 +238,26 @@ def train_CcGAN(kernel_sigma, kappa, photos, train_images, train_labels, gen, di
             # fake_weights = torch.ones(batch_size_disc, dtype=torch.float).to(device)
         #end if threshold type
 
-        # forward pass
+        # surface representation 
+        blur_cartoon = extract_surface.process(batch_real_cartoons, batch_real_cartoons, r=5, eps=2e-1)
+        blur_fake = extract_surface.process(batch_fake_images, batch_fake_images, r=5, eps=2e-1)
         dis_real_surface = disc_surface(
-            batch_real_surface_images, 
+            blur_cartoon, 
             batch_target_surface_labels
         )
         dis_fake_surface = disc_surface(
-            batch_fake_images, 
+            blur_fake, 
             batch_target_surface_labels
         )
 
-        tmp, = extract_texture.process(batch_real_surface_images)
+        # texture representation
+        gray_cartoon, gray_fake = extract_texture.process(batch_real_cartoons, batch_fake_images)
         dis_real_texture = disc_texture(
-            tmp,
+            gray_cartoon,
             batch_target_surface_labels
         )
-        tmp, = extract_texture.process(batch_fake_images)
         dis_fake_texture = disc_texture(
-            tmp, 
+            gray_fake, 
             batch_target_surface_labels
         )
 
@@ -278,28 +287,39 @@ def train_CcGAN(kernel_sigma, kappa, photos, train_images, train_labels, gen, di
         z = torch.cat(tmp, dim = 0).to(config.DEVICE)
 
         batch_fake_images = gen(z, batch_target_surface_labels)
+        output_photo = extract_surface.process(z, batch_fake_images, r=1)
+
+        # structure loss: superpixel
+        fake_structure = extract_structure.process(output_photo.detach())
+        vgg_out = VGG(output_photo)
+        _, c, h, w = vgg_out.shape
+        vgg_fake =  VGG(fake_structure)
+        superpixel_loss = config.LAMBDA_STRUCTURE * l1_loss(vgg_fake, vgg_out) * 255 / (c*h*w)
         
-        fake_image_vgg = VGG(batch_fake_images)
+        # content loss
         real_image_vgg = VGG(z)
+        content_loss = config.LAMBDA_CONTENT * l1_loss(vgg_out, real_image_vgg) * 255 / (c*h*w)
 
-        content_loss = config.LAMBDA_CONTENT * l1_loss(fake_image_vgg, real_image_vgg)
+        # variation loss
+        tv_loss = config.LAMBDA_VARIATION * var_loss(batch_fake_images)
 
-        # loss
+        # surface loss: guided filter
+        blur_fake = extract_surface.process(output_photo, output_photo, r=5, eps=2e-1)
         dis_surface = disc_surface(
-            batch_fake_images,
+            blur_fake,
             batch_target_surface_labels
         )
-        tmp, = extract_texture.process(batch_fake_images)
+        g_loss_surface = config.LAMBDA_SURFACE * mse(dis_surface, torch.ones_like(dis_surface+1e-20))
+
+        # texture loss: random color shift
+        g_gray_fake, = extract_texture.process(output_photo)
         dis_texture = disc_texture(
-            tmp,
+            g_gray_fake,
             batch_target_surface_labels
         )
+        g_loss_texture = config.LAMBDA_TEXTURE * mse(dis_texture, torch.ones_like(dis_texture+1e-20))
 
-        # still, use hinge loss_type
-        g_surface_loss = - config.LAMBDA_SURFACE * torch.mean(torch.log(dis_surface+1e-20))
-        g_texture_loss = - config.LAMBDA_TEXTURE * torch.mean(torch.log(dis_texture+1e-20))
-
-        g_loss = g_surface_loss + g_texture_loss + content_loss
+        g_loss = g_loss_surface + g_loss_texture + superpixel_loss + content_loss + tv_loss
 
         # backward
         optimizerG.zero_grad()
@@ -311,17 +331,22 @@ def train_CcGAN(kernel_sigma, kappa, photos, train_images, train_labels, gen, di
             sw.add_scalar("D loss like", d_loss_like.item(), niter)
             sw.add_scalar("D loss texture", d_loss_texture.item(), niter)
             sw.add_scalar("G loss", g_loss.item(), niter)
-            sw.add_scalar("G like loss", g_surface_loss.item(), niter)
-            sw.add_scalar("G texture loss", g_texture_loss.item(), niter)
+            sw.add_scalar("G surface loss", g_loss_surface.item(), niter)
+            sw.add_scalar("G texture loss", g_loss_texture.item(), niter)
+            sw.add_scalar("G structure loss", superpixel_loss.item(), niter)
             sw.add_scalar("content loss", content_loss.item(), niter)
             print (config.PROJECT_NAME + " CcGAN: [Iter %d/%d] [D loss: %.4e] [G loss: %.4e] [Time: %.4f]" % (niter+1, niters, d_loss_like.item(), g_loss.item(), timeit.default_timer()-start_time))
-            print ("[real like prob: %.3f] [fake like prob: %.3f] [content loss: %.4e]" % 
-                    (dis_real_surface.mean().item(), dis_fake_surface.mean().item(), content_loss.item()))
+            print ("[real like prob: %.3f] [fake like prob: %.3f]" % 
+                    (dis_real_surface.mean().item(), dis_fake_surface.mean().item()))
             print ("[real texture prob: %.3f] [fake texture prob: %.3f]" % 
                     (dis_real_texture.mean().item(), dis_fake_texture.mean().item()))
-            print ("[G like loss: %.4f] [G texture loss: %.4f]" % 
-                    (g_surface_loss.item(), g_texture_loss.item()))
-            
+            print ("[G surface loss: %.4f] [G texture loss: %.4f], [G structure loss: %.4f] [content loss: %.4f]" % 
+                    (g_loss_surface.item(), g_loss_texture.item(), superpixel_loss.item(), content_loss.item()))
+        
+        if niter % config.SAVE_IMG_FREQ == 0:
+            save_training_images(torch.cat((blur_fake*0.5+0.5,g_gray_fake*0.5+0.5,fake_structure*0.5+0.5), axis=3), epoch=int(niter/7200), step=niter, dest_folder=save_images_folder, suffix_filename="photo_rep")
+            save_training_images(torch.cat((z*0.5+0.5,batch_fake_images*0.5+0.5,output_photo*0.5+0.5), axis=3),
+                                                epoch=int(niter/7200), step=niter, dest_folder=save_images_folder, suffix_filename="io")
 
         if (niter+1) % 100 == 0:
             gen.eval()

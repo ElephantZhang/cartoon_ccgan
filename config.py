@@ -30,7 +30,7 @@ RESULT_TRAIN_DIR = os.path.join("results", PROJECT_NAME, "train")
 RESULT_VAL_DIR = os.path.join("results", PROJECT_NAME, "val")
 RESULT_TEST_DIR = os.path.join("results", PROJECT_NAME, "test")
 
-SAVE_IMG_FREQ = 100
+SAVE_IMG_FREQ = 1000
 LOAD_MODEL = True
 SAVE_MODEL = True
 SAVE_MODEL_FREQ = 5
@@ -53,19 +53,19 @@ dim_embed = 64
 
 # LAMBDA values
 #Paper Configuration:
-# LAMBDA_SURFACE = 1.0 #(author's code used 0.1)
-# LAMBDA_TEXTURE = 10 #(author's code used 1)
-# LAMBDA_STRUCTURE = 2000 #(author's code used 200)
-# LAMBDA_CONTENT = 2000 #(author's code used 200)
-# LAMBDA_VARIATION = 10000
+LAMBDA_SURFACE = 1.0 #(author's code used 0.1)
+LAMBDA_TEXTURE = 10 #(author's code used 1)
+LAMBDA_STRUCTURE = 2000 #(author's code used 200)
+LAMBDA_CONTENT = 2000 #(author's code used 200)
+LAMBDA_VARIATION = 10000
 #=============================
 # LAMBDA_DOG = 2
 # LAMBDA_LIKE = 5
 # LAMBDA_SKETCH = 1.5
-LAMBDA_SURFACE = 0.1
-LAMBDA_TEXTURE = 1
+# LAMBDA_SURFACE = 0.1
+# LAMBDA_TEXTURE = 1
 # LAMBDA_STRUCTURE = 200
-LAMBDA_CONTENT = 3
+# LAMBDA_CONTENT = 3
 # LAMBDA_VARIATION = 10000
 #=============================
 
