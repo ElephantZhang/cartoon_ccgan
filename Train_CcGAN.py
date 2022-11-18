@@ -72,9 +72,10 @@ def pretrain_gen(netG, opt_gen, photos, l1_loss, VGG):
         if((epoch+1)%100 == 0):
             print('[%d/%d] - Recon loss: %.8f' % ((epoch + 1), config.NUM_PRETRAIN_EPOCHS, reconstruction_loss.item()))
 
-def train_CcGAN(kernel_sigma, kappa, photos, train_images, train_labels, gen, disc_surface, VGG, save_images_folder, save_models_folder = None, clip_label=False):
+def train_CcGAN(kernel_sigma, kappa, photos, train_images, train_labels, gen, disc_surface, disc_texture, VGG, save_images_folder, save_models_folder = None, clip_label=False):
     '''
     Note that train_images are not normalized to [-1,1]
+    Note here surface is just the original pic, no smoother
     '''
     print("photos, train_images, train_labels", photos.shape, train_images.shape, train_labels.shape)
     print("lr_d, lr_g", lr_d, lr_g)
@@ -82,9 +83,12 @@ def train_CcGAN(kernel_sigma, kappa, photos, train_images, train_labels, gen, di
 
     gen = gen.to(config.DEVICE)
     disc_surface = disc_surface.to(config.DEVICE)
+    disc_texture = disc_texture.to(config.DEVICE)
 
     optimizerG = torch.optim.Adam(gen.parameters(), lr=lr_g, betas=(0.5, 0.999))
-    optimizerD = torch.optim.Adam(disc_surface.parameters(), lr=lr_d, betas=(0.5, 0.999))
+    optimizerD = torch.optim.Adam(itertools.chain(disc_surface.parameters(),disc_texture.parameters()), lr=lr_d, betas=(0.5, 0.999))
+
+    extract_texture = ColorShift(config.DEVICE, mode='uniform', image_format='rgb')
 
     if save_models_folder is not None and resume_niters>0:
         save_file = save_models_folder + "/CcGAN_{}_checkpoint_intrain/CcGAN_checkpoint_niters_{}.pth".format(threshold_type, resume_niters)
@@ -237,7 +241,21 @@ def train_CcGAN(kernel_sigma, kappa, photos, train_images, train_labels, gen, di
             batch_target_surface_labels
         )
 
-        d_loss = - torch.mean(real_surface_weights.view(-1) * torch.log(dis_real_surface.view(-1)+1e-20)) - torch.mean(fake_surface_weights.view(-1) * torch.log(1 - dis_fake_surface.view(-1)+1e-20))
+        tmp, = extract_texture.process(batch_real_surface_images)
+        dis_real_texture = disc_texture(
+            tmp,
+            batch_target_surface_labels
+        )
+        tmp, = extract_texture.process(batch_fake_images)
+        dis_fake_texture = disc_texture(
+            tmp, 
+            batch_target_surface_labels
+        )
+
+        d_loss_like = - torch.mean(real_surface_weights.view(-1) * torch.log(dis_real_surface.view(-1)+1e-20)) - torch.mean(fake_surface_weights.view(-1) * torch.log(1 - dis_fake_surface.view(-1)+1e-20))
+        d_loss_texture = - torch.mean(real_surface_weights.view(-1) * torch.log(dis_real_texture.view(-1)+1e-20)) - torch.mean(fake_surface_weights.view(-1) * torch.log(1 - dis_fake_texture.view(-1)+1e-20))
+
+        d_loss = d_loss_like + d_loss_texture
 
         optimizerD.zero_grad()
         d_loss.backward()
@@ -271,11 +289,17 @@ def train_CcGAN(kernel_sigma, kappa, photos, train_images, train_labels, gen, di
             batch_fake_images,
             batch_target_surface_labels
         )
+        tmp, = extract_texture.process(batch_fake_images)
+        dis_texture = disc_texture(
+            tmp,
+            batch_target_surface_labels
+        )
 
         # still, use hinge loss_type
         g_surface_loss = - config.LAMBDA_SURFACE * torch.mean(torch.log(dis_surface+1e-20))
+        g_texture_loss = - config.LAMBDA_TEXTURE * torch.mean(torch.log(dis_texture+1e-20))
 
-        g_loss = g_surface_loss + content_loss
+        g_loss = g_surface_loss + g_texture_loss + content_loss
 
         # backward
         optimizerG.zero_grad()
@@ -284,13 +308,20 @@ def train_CcGAN(kernel_sigma, kappa, photos, train_images, train_labels, gen, di
 
         # print loss
         if (niter+1) % 25 == 0:
-            sw.add_scalar("D loss", d_loss.item(), niter)
+            sw.add_scalar("D loss like", d_loss_like.item(), niter)
+            sw.add_scalar("D loss texture", d_loss_texture.item(), niter)
             sw.add_scalar("G loss", g_loss.item(), niter)
             sw.add_scalar("G like loss", g_surface_loss.item(), niter)
+            sw.add_scalar("G texture loss", g_texture_loss.item(), niter)
             sw.add_scalar("content loss", content_loss.item(), niter)
-            print (config.PROJECT_NAME + " CcGAN: [Iter %d/%d] [D loss: %.4e] [G loss: %.4e] [Time: %.4f]" % (niter+1, niters, d_loss.item(), g_loss.item(), timeit.default_timer()-start_time))
-            print ("[real prob: %.3f] [fake prob: %.3f] [content loss: %.4e]" % 
+            print (config.PROJECT_NAME + " CcGAN: [Iter %d/%d] [D loss: %.4e] [G loss: %.4e] [Time: %.4f]" % (niter+1, niters, d_loss_like.item(), g_loss.item(), timeit.default_timer()-start_time))
+            print ("[real like prob: %.3f] [fake like prob: %.3f] [content loss: %.4e]" % 
                     (dis_real_surface.mean().item(), dis_fake_surface.mean().item(), content_loss.item()))
+            print ("[real texture prob: %.3f] [fake texture prob: %.3f]" % 
+                    (dis_real_texture.mean().item(), dis_fake_texture.mean().item()))
+            print ("[G like loss: %.4f] [G texture loss: %.4f]" % 
+                    (g_surface_loss.item(), g_texture_loss.item()))
+            
 
         if (niter+1) % 100 == 0:
             gen.eval()
