@@ -118,9 +118,9 @@ if __name__ == "__main__":
     gen = Generator(img_channels=4)
     disc_surface = cont_cond_cnn_discriminator()
     disc_texture = cont_cond_cnn_discriminator()
-    # gen = nn.DataParallel(gen)
-    # disc_surface = nn.DataParallel(disc_surface)
-    # disc_texture = nn.DataParallel(disc_texture)
+    gen = nn.DataParallel(gen)
+    disc_surface = nn.DataParallel(disc_surface)
+    disc_texture = nn.DataParallel(disc_texture)
     
     VGG19 = VGGNet(in_channels=3, VGGtype="VGG19", init_weights=config.VGG_WEIGHTS, batch_norm=False, feature_mode=True)
     VGG19 = VGG19.to(config.DEVICE)

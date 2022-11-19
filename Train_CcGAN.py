@@ -82,6 +82,7 @@ def train_CcGAN(kernel_sigma, kappa, photos, train_cartoons, train_labels, gen, 
     '''
     print("photos, train_cartoons, train_labels", photos.shape, train_cartoons.shape, train_labels.shape)
     print("lr_d, lr_g", lr_d, lr_g)
+    print("content surface texture structure var", config.LAMBDA_CONTENT, config.LAMBDA_SURFACE, config.LAMBDA_TEXTURE, config.LAMBDA_STRUCTURE, config.LAMBDA_VARIATION)
     l1_loss = nn.L1Loss()    
 
     gen = gen.to(config.DEVICE)
@@ -145,68 +146,71 @@ def train_CcGAN(kernel_sigma, kappa, photos, train_cartoons, train_labels, gen, 
     for niter in range(resume_niters, niters):
 
         '''  Train Discriminator   '''
-        ## randomly draw batch_size_disc y's from unique_train_labels
-        batch_target_surface_labels_in_dataset = np.random.choice(unique_train_labels, size=batch_size_max, replace=True)
+       ## randomly draw batch_size_disc y's from unique_train_labels
+        batch_target_labels_in_dataset = np.random.choice(unique_train_labels, size=batch_size_max, replace=True)
         ## add Gaussian noise; we estimate image distribution conditional on these labels
         batch_epsilons = np.random.normal(0, kernel_sigma, batch_size_max)
-        batch_target_surface_labels_with_epsilon = batch_target_surface_labels_in_dataset + batch_epsilons
+        batch_target_labels_with_epsilon = batch_target_labels_in_dataset + batch_epsilons
         if clip_label:
-            batch_target_surface_labels_with_epsilon = np.clip(batch_target_surface_labels_with_epsilon, 0.0, 1.0)
+            batch_target_labels_with_epsilon = np.clip(batch_target_labels_with_epsilon, 0.0, 1.0)
 
-        batch_target_surface_labels = batch_target_surface_labels_with_epsilon[0:batch_size_disc]
+        batch_target_labels = batch_target_labels_with_epsilon[0:batch_size_disc]
 
         ## find index of real images with labels in the vicinity of batch_target_labels
         ## generate labels for fake image generation; these labels are also in the vicinity of batch_target_labels
-        batch_real_surface_indx = np.zeros(batch_size_disc, dtype=int) #index of images in the datata; the labels of these images are in the vicinity
-        batch_fake_surface_labels = np.zeros(batch_size_disc)
+        batch_real_indx = np.zeros(batch_size_disc, dtype=int) #index of images in the datata; the labels of these images are in the vicinity
+        batch_fake_labels = np.zeros(batch_size_disc)
 
         for j in range(batch_size_disc):
             ## index for real images
             if threshold_type == "hard":
-                assert False 
+                assert False
                 # indx_real_in_vicinity = np.where(np.abs(train_labels-batch_target_labels[j])<= kappa)[0]
             else:
                 # reverse the weight function for SVDL
-                indx_real_surface_in_vicinity = np.where((train_labels-batch_target_surface_labels[j])**2 <= -np.log(nonzero_soft_weight_threshold)/kappa)[0]
+                indx_real_in_vicinity = np.where((train_labels-batch_target_labels[j])**2 <= -np.log(nonzero_soft_weight_threshold)/kappa)[0]
 
             ## if the max gap between two consecutive ordered unique labels is large, it is possible that len(indx_real_in_vicinity)<1
-            while len(indx_real_surface_in_vicinity)<1:
+            while len(indx_real_in_vicinity)<1:
                 batch_epsilons_j = np.random.normal(0, kernel_sigma, 1)
-                batch_target_surface_labels[j] = batch_target_surface_labels_in_dataset[j] + batch_epsilons_j
+                batch_target_labels[j] = batch_target_labels_in_dataset[j] + batch_epsilons_j
                 if clip_label:
-                    batch_target_surface_labels = np.clip(batch_target_surface_labels, 0.0, 1.0)
+                    batch_target_labels = np.clip(batch_target_labels, 0.0, 1.0)
                 ## index for real images
                 if threshold_type == "hard":
-                    # indx_real_in_vicinity = np.where(np.abs(train_labels-batch_target_labels[j])<= kappa)[0]
                     assert False
+                    # indx_real_in_vicinity = np.where(np.abs(train_labels-batch_target_labels[j])<= kappa)[0]
                 else:
                     # reverse the weight function for SVDL
-                    indx_real_surface_in_vicinity = np.where((train_labels-batch_target_surface_labels[j])**2 <= -np.log(nonzero_soft_weight_threshold)/kappa)[0]
+                    indx_real_in_vicinity = np.where((train_labels-batch_target_labels[j])**2 <= -np.log(nonzero_soft_weight_threshold)/kappa)[0]
+            #end while len(indx_real_in_vicinity)<1
 
-            assert len(indx_real_surface_in_vicinity)>=1
+            assert len(indx_real_in_vicinity)>=1
 
-            batch_real_surface_indx[j] = np.random.choice(indx_real_surface_in_vicinity, size=1)[0]
+            batch_real_indx[j] = np.random.choice(indx_real_in_vicinity, size=1)[0]
 
             ## labels for fake images generation
             if threshold_type == "hard":
                 assert False
+                # lb = batch_target_labels[j] - kappa
+                # ub = batch_target_labels[j] + kappa
             else:
-                lb_surface = batch_target_surface_labels[j] - np.sqrt(-np.log(nonzero_soft_weight_threshold)/kappa)
-                ub_surface = batch_target_surface_labels[j] + np.sqrt(-np.log(nonzero_soft_weight_threshold)/kappa)
-            lb_surface = max(0.0, lb_surface); ub_surface = min(ub_surface, 1.0)
-            assert lb_surface<=ub_surface
-            assert lb_surface>=0 and ub_surface>=0
-            assert lb_surface<=1 and ub_surface<=1
-            batch_fake_surface_labels[j] = np.random.uniform(lb_surface, ub_surface, size=1)[0]
+                lb = batch_target_labels[j] - np.sqrt(-np.log(nonzero_soft_weight_threshold)/kappa)
+                ub = batch_target_labels[j] + np.sqrt(-np.log(nonzero_soft_weight_threshold)/kappa)
+            lb = max(0.0, lb); ub = min(ub, 1.0)
+            assert lb<=ub
+            assert lb>=0 and ub>=0
+            assert lb<=1 and ub<=1
+            batch_fake_labels[j] = np.random.uniform(lb, ub, size=1)[0]
         #end for j
 
         ## draw the real image batch from the training set
-        batch_real_cartoons = train_cartoons[batch_real_surface_indx]
+        batch_real_cartoons = train_cartoons[batch_real_indx]
         
         assert batch_real_cartoons.max()>1
 
-        batch_real_surface_labels = train_labels[batch_real_surface_indx]
-        batch_real_surface_labels = torch.from_numpy(batch_real_surface_labels).type(torch.float).to(config.DEVICE)
+        batch_real_labels = train_labels[batch_real_indx]
+        batch_real_labels = torch.from_numpy(batch_real_labels).type(torch.float).to(config.DEVICE)
 
         ## normalize real images to [-1,1]
         tmp = []
@@ -216,22 +220,22 @@ def train_CcGAN(kernel_sigma, kappa, photos, train_cartoons, train_labels, gen, 
 
 
         ## generate the fake image batch
-        batch_fake_surface_labels = torch.from_numpy(batch_fake_surface_labels).type(torch.float).to(config.DEVICE)
+        batch_fake_labels = torch.from_numpy(batch_fake_labels).type(torch.float).to(config.DEVICE)
 
         z = photos[np.random.choice(photos.shape[0], batch_size_max)]
         tmp = []
         for idx in range(0, batch_size_max):
             tmp.append(preprocess(z[idx]).unsqueeze(0))
         z = torch.cat(tmp, dim=0).to(config.DEVICE)
-        batch_fake_images = gen(z, batch_fake_surface_labels)
+        batch_fake_images = gen(z, batch_fake_labels)
 
         ## target labels on gpu
-        batch_target_surface_labels = torch.from_numpy(batch_target_surface_labels).type(torch.float).to(config.DEVICE)
+        batch_target_labels = torch.from_numpy(batch_target_labels).type(torch.float).to(config.DEVICE)
 
         ## weight vector
         if threshold_type == "soft":
-            real_surface_weights = torch.exp(-kappa*(batch_real_surface_labels - batch_target_surface_labels)**2).to(config.DEVICE)
-            fake_surface_weights = torch.exp(-kappa*(batch_fake_surface_labels - batch_target_surface_labels)**2).to(config.DEVICE)
+            real_weights = torch.exp(-kappa*(batch_real_labels-batch_target_labels)**2).to(config.DEVICE)
+            fake_weights = torch.exp(-kappa*(batch_fake_labels-batch_target_labels)**2).to(config.DEVICE)
         else:
             assert False
             # real_weights = torch.ones(batch_size_disc, dtype=torch.float).to(device)
@@ -243,28 +247,31 @@ def train_CcGAN(kernel_sigma, kappa, photos, train_cartoons, train_labels, gen, 
         blur_fake = extract_surface.process(batch_fake_images, batch_fake_images, r=5, eps=2e-1)
         dis_real_surface = disc_surface(
             blur_cartoon, 
-            batch_target_surface_labels
+            batch_target_labels
         )
         dis_fake_surface = disc_surface(
             blur_fake, 
-            batch_target_surface_labels
+            batch_target_labels
         )
+        d_loss_surface_real = mse(real_weights.view(-1,1) * dis_real_surface, torch.ones_like(dis_real_surface))
+        d_loss_surface_fake = mse(fake_weights.view(-1,1) * dis_fake_surface, torch.zeros_like(dis_fake_surface))
+        d_loss_surface = (d_loss_surface_real + d_loss_surface_fake) / 2.0
 
         # texture representation
         gray_cartoon, gray_fake = extract_texture.process(batch_real_cartoons, batch_fake_images)
         dis_real_texture = disc_texture(
             gray_cartoon,
-            batch_target_surface_labels
+            batch_target_labels
         )
         dis_fake_texture = disc_texture(
             gray_fake, 
-            batch_target_surface_labels
+            batch_target_labels
         )
+        d_loss_texture_real = mse(real_weights.view(-1,1) * dis_real_texture, torch.ones_like(dis_real_texture))
+        d_loss_texture_fake = mse(fake_weights.view(-1,1) * dis_fake_texture, torch.zeros_like(dis_fake_texture))
+        d_loss_texture = (d_loss_texture_real + d_loss_texture_fake) / 2.0
 
-        d_loss_like = - torch.mean(real_surface_weights.view(-1) * torch.log(dis_real_surface.view(-1)+1e-20)) - torch.mean(fake_surface_weights.view(-1) * torch.log(1 - dis_fake_surface.view(-1)+1e-20))
-        d_loss_texture = - torch.mean(real_surface_weights.view(-1) * torch.log(dis_real_texture.view(-1)+1e-20)) - torch.mean(fake_surface_weights.view(-1) * torch.log(1 - dis_fake_texture.view(-1)+1e-20))
-
-        d_loss = d_loss_like + d_loss_texture
+        d_loss = d_loss_surface + d_loss_texture
 
         optimizerD.zero_grad()
         d_loss.backward()
@@ -275,8 +282,8 @@ def train_CcGAN(kernel_sigma, kappa, photos, train_cartoons, train_labels, gen, 
         gen.train()
 
         # generate fake images
-        batch_target_surface_labels = batch_target_surface_labels_with_epsilon[0:batch_size_gene]
-        batch_target_surface_labels = torch.from_numpy(batch_target_surface_labels).type(torch.float).to(config.DEVICE)
+        batch_target_labels = batch_target_labels_with_epsilon[0:batch_size_gene]
+        batch_target_labels = torch.from_numpy(batch_target_labels).type(torch.float).to(config.DEVICE)
 
         photo_sample_indices = np.random.randint(0, photos.shape[0], (batch_size_max, )) # N, 256, 256, 3
         sampled_photos = photos[photo_sample_indices]
@@ -286,7 +293,7 @@ def train_CcGAN(kernel_sigma, kappa, photos, train_cartoons, train_labels, gen, 
             tmp.append(preprocess(sampled_photos[idx]).unsqueeze(0))
         z = torch.cat(tmp, dim = 0).to(config.DEVICE)
 
-        batch_fake_images = gen(z, batch_target_surface_labels)
+        batch_fake_images = gen(z, batch_target_labels)
         output_photo = extract_surface.process(z, batch_fake_images, r=1)
 
         # structure loss: superpixel
@@ -307,17 +314,17 @@ def train_CcGAN(kernel_sigma, kappa, photos, train_cartoons, train_labels, gen, 
         blur_fake = extract_surface.process(output_photo, output_photo, r=5, eps=2e-1)
         dis_surface = disc_surface(
             blur_fake,
-            batch_target_surface_labels
+            batch_target_labels
         )
-        g_loss_surface = config.LAMBDA_SURFACE * mse(dis_surface, torch.ones_like(dis_surface+1e-20))
+        g_loss_surface = config.LAMBDA_SURFACE * mse(dis_surface, torch.ones_like(dis_surface))
 
         # texture loss: random color shift
         g_gray_fake, = extract_texture.process(output_photo)
         dis_texture = disc_texture(
             g_gray_fake,
-            batch_target_surface_labels
+            batch_target_labels
         )
-        g_loss_texture = config.LAMBDA_TEXTURE * mse(dis_texture, torch.ones_like(dis_texture+1e-20))
+        g_loss_texture = config.LAMBDA_TEXTURE * mse(dis_texture, torch.ones_like(dis_texture))
 
         g_loss = g_loss_surface + g_loss_texture + superpixel_loss + content_loss + tv_loss
 
@@ -328,14 +335,14 @@ def train_CcGAN(kernel_sigma, kappa, photos, train_cartoons, train_labels, gen, 
 
         # print loss
         if (niter+1) % 25 == 0:
-            sw.add_scalar("D loss like", d_loss_like.item(), niter)
+            sw.add_scalar("D loss surface", d_loss_surface.item(), niter)
             sw.add_scalar("D loss texture", d_loss_texture.item(), niter)
             sw.add_scalar("G loss", g_loss.item(), niter)
             sw.add_scalar("G surface loss", g_loss_surface.item(), niter)
             sw.add_scalar("G texture loss", g_loss_texture.item(), niter)
             sw.add_scalar("G structure loss", superpixel_loss.item(), niter)
             sw.add_scalar("content loss", content_loss.item(), niter)
-            print (config.PROJECT_NAME + " CcGAN: [Iter %d/%d] [D loss: %.4e] [G loss: %.4e] [Time: %.4f]" % (niter+1, niters, d_loss_like.item(), g_loss.item(), timeit.default_timer()-start_time))
+            print (config.PROJECT_NAME + " CcGAN: [Iter %d/%d] [D loss: %.4e] [G loss: %.4e] [Time: %.4f]" % (niter+1, niters, d_loss_surface.item(), g_loss.item(), timeit.default_timer()-start_time))
             print ("[real like prob: %.3f] [fake like prob: %.3f]" % 
                     (dis_real_surface.mean().item(), dis_fake_surface.mean().item()))
             print ("[real texture prob: %.3f] [fake texture prob: %.3f]" % 
@@ -351,7 +358,7 @@ def train_CcGAN(kernel_sigma, kappa, photos, train_cartoons, train_labels, gen, 
         if (niter+1) % 100 == 0:
             gen.eval()
             with torch.no_grad():
-                photo_sample_indices = np.random.randint(0, photos.shape[0], (1, )) # 2, 256, 256, 3
+                photo_sample_indices = np.random.randint(0, photos.shape[0], (2, )) # 2, 256, 256, 3
                 test_photo = photos[photo_sample_indices]
                 tmp = []
                 for k in range(0, test_photo.shape[0]):
@@ -359,7 +366,7 @@ def train_CcGAN(kernel_sigma, kappa, photos, train_cartoons, train_labels, gen, 
                 z_test = torch.cat(tmp, dim=0).to(config.DEVICE)
                 tmp = []
                 for k in range(0, y_fixed.shape[0]):
-                    gen_img = gen(z_test, y_fixed[k])
+                    gen_img = gen(z_test, y_fixed[k].repeat_interleave(z_test.shape[0]))
                     gen_img = gen_img[0:1, :, :, :]
                     tmp.append(torch.cat((z_test[0:1,:,:,:],gen_img), axis=3))
                 gen_imgs = torch.cat(tmp, dim=0)
