@@ -13,3 +13,11 @@ vgg19-dcbb9e9d.pth
 *.pth
 context12/
 surface_texture/
+double_disc_single_scale/
+double_linear_batchnorm/
+naive_conv_cond/
+pretrain.py
+project_name/
+single_style/
+two_disc_texture10/
+whitebox_ccgan/

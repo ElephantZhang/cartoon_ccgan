@@ -112,15 +112,54 @@ def kyoma_loder():
 
     return style_images, style_labels, photo_images
 
+
+def get_net_y2h(extracotr_name, style_images, style_labels):
+    print("Pretrain net_embed: x2h+h2y")
+    print("\n Start training CNN for label embedding >>>")
+    net_embed = ResNet34_embed(dim_embed=config.dim_embed)
+    net_embed = net_embed.to(config.DEVICE)
+    net_embed = nn.DataParallel(net_embed)
+
+    net_y2h = model_y2h(dim_embed=config.dim_embed)
+    net_y2h = net_y2h.to(config.DEVICE)
+    net_y2h = nn.DataParallel(net_y2h)
+
+    if not os.path.isfile(extracotr_name+"_net_embed_ckpt.pth"):
+        net_embed = train_net_embed(net=net_embed, train_images=style_images, train_lables=style_labels, path_to_ckpt = "./saved_embed_models/")
+        # save model
+        torch.save({
+            'net_state_dict': net_embed.state_dict(),
+        }, extracotr_name+"_net_embed_ckpt.pth")
+    else:
+        checkpoint = torch.load(extracotr_name+"_net_embed_ckpt.pth")
+        net_embed.load_state_dict(checkpoint['net_state_dict'])
+        print("load net_embed from", extracotr_name+"_net_embed_ckpt.pth")
+
+    if not os.path.isfile(extracotr_name+"_net_y2h_ckpt.pth"):
+        print("\n Start training net_y2h >>>")
+        unique_labels_norm = np.sort(np.array(list(set(style_labels))))
+        net_y2h = train_net_y2h(unique_labels_norm, net_y2h, net_embed)
+        # save model
+        torch.save({
+            'net_state_dict': net_y2h.state_dict(),
+        }, extracotr_name+"_net_y2h_ckpt.pth")
+    else:
+        checkpoint = torch.load(extracotr_name+"_net_y2h_ckpt.pth")
+        net_y2h.load_state_dict(checkpoint['net_state_dict'])
+    return net_y2h
+
+
 if __name__ == "__main__":
     style_images, style_labels, photo_images = kyoma_loder()
 
-    gen = Generator(img_channels=4)
+    gen = Generator(img_channels=3)
     disc_surface = cont_cond_cnn_discriminator()
     disc_texture = cont_cond_cnn_discriminator()
-    gen = nn.DataParallel(gen)
-    disc_surface = nn.DataParallel(disc_surface)
-    disc_texture = nn.DataParallel(disc_texture)
+    # gen = nn.DataParallel(gen)
+    # disc_surface = nn.DataParallel(disc_surface)
+    # disc_texture = nn.DataParallel(disc_texture)
+
+    net_y2h = get_net_y2h("parallel_origin", style_images, style_labels)
     
     VGG19 = VGGNet(in_channels=3, VGGtype="VGG19", init_weights=config.VGG_WEIGHTS, batch_norm=False, feature_mode=True)
     VGG19 = VGG19.to(config.DEVICE)
@@ -146,7 +185,7 @@ if __name__ == "__main__":
         else:
             args.kappa = 1/kappa_base**2
 
-    gen, disc_surface, disc_texure = train_CcGAN(args.kernel_sigma, args.kappa, photo_images, style_images, style_labels, gen, disc_surface, disc_texture, VGG19, save_images_folder="./saved_images/"+config.PROJECT_NAME, save_models_folder = "./saved_models/"+config.PROJECT_NAME)
+    gen, disc_surface, disc_texure = train_CcGAN(args.kernel_sigma, args.kappa, photo_images, style_images, style_labels, gen, disc_surface, disc_texture, net_y2h, VGG19, save_images_folder="./saved_images/"+config.PROJECT_NAME, save_models_folder = "./saved_models/"+config.PROJECT_NAME)
 
     torch.save({
         'gen_state_dict': gen.state_dict(),

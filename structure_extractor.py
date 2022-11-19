@@ -12,7 +12,6 @@ from PIL import Image
 import cv2
 from texture_extractor import DoG
 from surface_extractor import GuidedFilter
-from generator_model import Gray_Generator
 
 class SuperPixel():
     def __init__(self, device: torch.device='cpu', mode='simple'):

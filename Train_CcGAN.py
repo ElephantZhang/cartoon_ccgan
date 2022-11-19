@@ -53,7 +53,7 @@ preprocess = transforms.Compose([
         std=[0.5, 0.5, 0.5]),
 ])
 
-def pretrain_gen(netG, opt_gen, photos, l1_loss, VGG):
+def pretrain_gen(netG, net_y2h, opt_gen, photos, l1_loss, VGG):
     for epoch in range(0, config.NUM_PRETRAIN_EPOCHS):
         z = photos[np.random.choice(photos.shape[0], batch_size_max)]
         tmp = []
@@ -63,7 +63,7 @@ def pretrain_gen(netG, opt_gen, photos, l1_loss, VGG):
 
         batch_fake_images = netG(
             z, 
-            torch.rand(batch_size_max).to(config.DEVICE), 
+            net_y2h(torch.rand(batch_size_max).to(config.DEVICE)), 
         )
         photos_vgg = VGG(z)
         fake_vgg = VGG(batch_fake_images)
@@ -75,7 +75,7 @@ def pretrain_gen(netG, opt_gen, photos, l1_loss, VGG):
         if((epoch+1)%100 == 0):
             print('[%d/%d] - Recon loss: %.8f' % ((epoch + 1), config.NUM_PRETRAIN_EPOCHS, reconstruction_loss.item()))
 
-def train_CcGAN(kernel_sigma, kappa, photos, train_cartoons, train_labels, gen, disc_surface, disc_texture, VGG, save_images_folder, save_models_folder = None, clip_label=False):
+def train_CcGAN(kernel_sigma, kappa, photos, train_cartoons, train_labels, gen, disc_surface, disc_texture, net_y2h, VGG, save_images_folder, save_models_folder = None, clip_label=False):
     '''
     Note that train_cartoons are not normalized to [-1,1]
     Note here surface is just the original pic, no smoother
@@ -116,7 +116,7 @@ def train_CcGAN(kernel_sigma, kappa, photos, train_cartoons, train_labels, gen, 
         optimizerG.load_state_dict(checkpoint['optimizerG_state_dict'])
         print("load generator from", save_models_folder + "/CcGAN_pretrained_gen.pth")
     else:
-        pretrain_gen(gen, optimizerG, photos, l1_loss, VGG)
+        pretrain_gen(gen, net_y2h, optimizerG, photos, l1_loss, VGG)
         save_file = save_models_folder + "/CcGAN_pretrained_gen.pth"
         os.makedirs(os.path.dirname(save_file), exist_ok=True)
         torch.save({
@@ -227,7 +227,7 @@ def train_CcGAN(kernel_sigma, kappa, photos, train_cartoons, train_labels, gen, 
         for idx in range(0, batch_size_max):
             tmp.append(preprocess(z[idx]).unsqueeze(0))
         z = torch.cat(tmp, dim=0).to(config.DEVICE)
-        batch_fake_images = gen(z, batch_fake_labels)
+        batch_fake_images = gen(z, net_y2h(batch_fake_labels))
 
         ## target labels on gpu
         batch_target_labels = torch.from_numpy(batch_target_labels).type(torch.float).to(config.DEVICE)
@@ -293,7 +293,7 @@ def train_CcGAN(kernel_sigma, kappa, photos, train_cartoons, train_labels, gen, 
             tmp.append(preprocess(sampled_photos[idx]).unsqueeze(0))
         z = torch.cat(tmp, dim = 0).to(config.DEVICE)
 
-        batch_fake_images = gen(z, batch_target_labels)
+        batch_fake_images = gen(z, net_y2h(batch_target_labels))
         output_photo = extract_surface.process(z, batch_fake_images, r=1)
 
         # structure loss: superpixel
@@ -367,7 +367,7 @@ def train_CcGAN(kernel_sigma, kappa, photos, train_cartoons, train_labels, gen, 
                 z_test = torch.cat(tmp, dim=0).to(config.DEVICE)
                 tmp = []
                 for k in range(0, y_fixed.shape[0]):
-                    gen_img = gen(z_test, y_fixed[k].repeat_interleave(z_test.shape[0]))
+                    gen_img = gen(z_test, net_y2h(y_fixed[k].repeat_interleave(z_test.shape[0])))
                     gen_img = gen_img[0:1, :, :, :]
                     tmp.append(torch.cat((z_test[0:1,:,:,:],gen_img), axis=3))
                 gen_imgs = torch.cat(tmp, dim=0)

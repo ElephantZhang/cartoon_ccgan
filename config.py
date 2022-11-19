@@ -3,7 +3,7 @@ import albumentations as A
 from albumentations.pytorch import ToTensorV2
 import os
 
-DEVICE = "cuda:0" #if torch.cuda.is_available() else "cpu"
+DEVICE = "cuda" #if torch.cuda.is_available() else "cpu"
 
 PROJECT_NAME = "single_feature"
 
@@ -38,7 +38,7 @@ SAVE_MODEL_FREQ = 5
 
 # Training Configuration:
 #Paper Configuration:
-BATCH_SIZE = 64
+BATCH_SIZE = 128
 #LEARNING_RATE = 2e-4
 #=============================
 # BATCH_SIZE = 64

@@ -142,7 +142,7 @@ def train_net_y2h(unique_labels_norm, net_y2h, net_embed, epochs=500, lr_base=0.
     trainloader = torch.utils.data.DataLoader(trainset, batch_size=batch_size, shuffle=True)
 
     net_embed.eval()
-    net_h2y=net_embed.h2y #convert embedding labels to original labels
+    net_h2y=net_embed.module.h2y #convert embedding labels to original labels
     optimizer_y2h = torch.optim.SGD(net_y2h.parameters(), lr = lr_base, momentum= 0.9, weight_decay=weight_decay)
 
     start_tmp = timeit.default_timer()
