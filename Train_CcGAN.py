@@ -297,11 +297,12 @@ def train_CcGAN(kernel_sigma, kappa, photos, train_cartoons, train_labels, gen, 
         output_photo = extract_surface.process(z, batch_fake_images, r=1)
 
         # structure loss: superpixel
-        fake_structure = extract_structure.process(output_photo.detach())
+        # modified here, restrict generated image look like original superixel photo
+        photo_structure = extract_structure.process(z.detach())
         vgg_out = VGG(output_photo)
         _, c, h, w = vgg_out.shape
-        vgg_fake =  VGG(fake_structure)
-        superpixel_loss = config.LAMBDA_STRUCTURE * l1_loss(vgg_fake, vgg_out) * 255 / (c*h*w)
+        vgg_photo =  VGG(photo_structure)
+        superpixel_loss = config.LAMBDA_STRUCTURE * l1_loss(vgg_photo, vgg_out) * 255 / (c*h*w)
         
         # content loss
         real_image_vgg = VGG(z)
@@ -351,7 +352,7 @@ def train_CcGAN(kernel_sigma, kappa, photos, train_cartoons, train_labels, gen, 
                     (g_loss_surface.item(), g_loss_texture.item(), superpixel_loss.item(), content_loss.item()))
         
         if niter % config.SAVE_IMG_FREQ == 0:
-            save_training_images(torch.cat((blur_fake*0.5+0.5,g_gray_fake*0.5+0.5,fake_structure*0.5+0.5), axis=3), epoch=int(niter/7200), step=niter, dest_folder=save_images_folder, suffix_filename="photo_rep")
+            save_training_images(torch.cat((blur_fake*0.5+0.5,g_gray_fake*0.5+0.5,photo_structure*0.5+0.5), axis=3), epoch=int(niter/7200), step=niter, dest_folder=save_images_folder, suffix_filename="photo_rep")
             save_training_images(torch.cat((z*0.5+0.5,batch_fake_images*0.5+0.5,output_photo*0.5+0.5), axis=3),
                                                 epoch=int(niter/7200), step=niter, dest_folder=save_images_folder, suffix_filename="io")
 
