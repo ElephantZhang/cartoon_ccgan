@@ -27,6 +27,8 @@ config.BATCH_SIZE = args.batch_size_disc
 config.LAMBDA_SURFACE = args.lambda_surface
 config.LAMBDA_TEXTURE = args.lambda_texture
 config.LAMBDA_CONTENT = args.lambda_context
+config.LAMBDA_STRUCTURE = args.lambda_structure
+config.NUM_PRETRAIN_EPOCHS = args.pretrain_num
 
 sw = SummaryWriter(config.PROJECT_NAME)
 # some parameters in opts
