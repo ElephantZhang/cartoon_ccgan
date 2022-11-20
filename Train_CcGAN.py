@@ -100,7 +100,7 @@ def train_CcGAN(kernel_sigma, kappa, photos, train_cartoons, train_labels, gen, 
 
     if save_models_folder is not None and resume_niters>0:
         save_file = save_models_folder + "/CcGAN_{}_checkpoint_intrain/CcGAN_checkpoint_niters_{}.pth".format(threshold_type, resume_niters)
-        checkpoint = torch.load(save_file)
+        checkpoint = torch.load(save_file, map_location=torch.device(config.DEVICE))
         gen.load_state_dict(checkpoint['gen_state_dict'])
         disc_surface.load_state_dict(checkpoint['disc_surface_state_dict'])
         optimizerG.load_state_dict(checkpoint['optimizerG_state_dict'])
