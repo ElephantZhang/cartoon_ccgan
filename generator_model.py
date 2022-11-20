@@ -24,8 +24,7 @@ class ConditionalBatchNorm2d(nn.Module):
         
         gamma0 = self.embed_gamma0(y).view(-1, self.num_features, 1, 1)
         beta0 = self.embed_beta0(y).view(-1, self.num_features, 1, 1)
-
-        return out + gamma0*out + beta0
+        return torch.cat((out, gamma0*out + beta0), dim=1)
 
 
 class ResidualBlock(nn.Module): # B, 128, 64, 64
@@ -39,10 +38,10 @@ class ResidualBlock(nn.Module): # B, 128, 64, 64
         #     nn.Conv2d(channels, channels, kernel_size=kernel_size, stride=stride, padding=padding, padding_mode=padding_mode),
         # )
         self.cond_batchnorm = ConditionalBatchNorm2d(channels, dim_embed)
-        self.conv0 = nn.Conv2d(channels, channels, kernel_size=kernel_size, stride=stride, padding=padding, padding_mode=padding_mode, device=config.DEVICE)
+        self.conv0 = nn.Conv2d(channels*2, channels, kernel_size=kernel_size, stride=stride, padding=padding, padding_mode=padding_mode, device=config.DEVICE)
         self.relu = nn.LeakyReLU(negative_slope=0.2, inplace=True)
         self.cond_batchnrom = ConditionalBatchNorm2d(channels, dim_embed)
-        self.conv1 = nn.Conv2d(channels, channels, kernel_size=kernel_size, stride=stride, padding=padding, padding_mode=padding_mode, device=config.DEVICE)
+        self.conv1 = nn.Conv2d(channels*2, channels, kernel_size=kernel_size, stride=stride, padding=padding, padding_mode=padding_mode, device=config.DEVICE)
 
     def forward(self, x, y):
         #Elementwise Sum (ES)
@@ -63,13 +62,15 @@ class Up1(nn.Module):
         #     ConditionalBatchNorm2d(num_features*2, dim_embed),
         #     nn.LeakyReLU(negative_slope=0.2, inplace=True),
         # )
-        self.conv = nn.Conv2d(num_features*4, num_features*2, kernel_size=kernel_size, stride=stride, padding=padding, padding_mode=padding_mode, device=config.DEVICE)
+        self.conv0 = nn.Conv2d(num_features*4, num_features*2, kernel_size=kernel_size, stride=stride, padding=padding, padding_mode=padding_mode, device=config.DEVICE)
         self.relu = nn.LeakyReLU(negative_slope=0.2, inplace=True)
         self.cond_batchnorm = ConditionalBatchNorm2d(num_features*2, dim_embed)
+        self.conv1 = nn.Conv2d(num_features*4, num_features*2, kernel_size=kernel_size, stride=stride, padding=padding, padding_mode=padding_mode, device=config.DEVICE)
     def forward(self, x, y):
-        x = self.conv(x)
+        x = self.conv0(x)
         x = self.relu(x)
         x = self.cond_batchnorm(x, y)
+        x = self.conv1(x)
         return x
 
 class Up2(nn.Module):
@@ -88,9 +89,10 @@ class Up2(nn.Module):
         self.conv0 = nn.Conv2d(num_features*2, num_features*2, kernel_size=3, stride=1, padding=1, padding_mode=padding_mode, device=config.DEVICE)
         self.relu0 = nn.LeakyReLU(negative_slope=0.2, inplace=True)
         self.cond_batchnorm0 = ConditionalBatchNorm2d(num_features*2, dim_embed)
-        self.conv1 = nn.Conv2d(num_features*2, num_features, kernel_size=3, stride=1, padding=1, padding_mode=padding_mode, device=config.DEVICE)
+        self.conv1 = nn.Conv2d(num_features*2*2, num_features, kernel_size=3, stride=1, padding=1, padding_mode=padding_mode, device=config.DEVICE)
         self.relu1 = nn.LeakyReLU(negative_slope=0.2, inplace=True)
         self.cond_batchnorm1 = ConditionalBatchNorm2d(num_features, dim_embed)
+        self.conv2 = nn.Conv2d(num_features*2, num_features, kernel_size=3, stride=1, padding=1, padding_mode=padding_mode, device=config.DEVICE)
     def forward(self, x, y):
         x = self.conv0(x)
         x = self.relu0(x)
@@ -98,6 +100,7 @@ class Up2(nn.Module):
         x = self.conv1(x)
         x = self.relu1(x)
         x = self.cond_batchnorm1(x, y)
+        x = self.conv2(x)
         return x
 
 class Last(nn.Module):
@@ -113,12 +116,10 @@ class Last(nn.Module):
         super().__init__()
         self.conv0 = nn.Conv2d(num_features, num_features, kernel_size=3, stride=1, padding=1, padding_mode=padding_mode, device=config.DEVICE)
         self.relu = nn.LeakyReLU(negative_slope=0.2, inplace=True)
-        self.cond_batchnorm = ConditionalBatchNorm2d(num_features, dim_embed)
         self.conv1 = nn.Conv2d(num_features, out_channels, kernel_size=7, stride=1, padding=3, padding_mode=padding_mode, device=config.DEVICE)
-    def forward(self, x, y):
+    def forward(self, x):
         x = self.conv0(x)
         x = self.relu(x)
-        x = self.cond_batchnorm(x, y)
         x = self.conv1(x)
         return x
 
@@ -178,6 +179,6 @@ class Generator(nn.Module):
         x = self.up2(x + x2, y) # B, 32, 128, 128
         #Resize Bilinear
         x = F.interpolate(x, scale_factor=2, mode='bilinear', align_corners = False) # B, 32, 256, 256
-        x = self.last(x + x1, y) # B, 3, 256, 256
+        x = self.last(x + x1) # B, 3, 256, 256
         #TanH
         return torch.tanh(x)
