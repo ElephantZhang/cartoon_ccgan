@@ -36,6 +36,7 @@ def parse_opts():
     parser.add_argument("--lambda_surface", type=float, default=1)
     parser.add_argument("--lambda_texture", type=float, default=10)
     parser.add_argument("--lambda_context", type=float, default=2000)
+    parser.add_argument("--lambda_structure", type=float, default=1000)
 
     parser.add_argument('--kernel_sigma', type=float, default=-1.0,
                         help='If kernel_sigma<0, then use rule-of-thumb formula to compute the sigma.')
