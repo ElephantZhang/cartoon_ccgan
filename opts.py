@@ -27,7 +27,7 @@ def parse_opts():
     parser.add_argument('--resume_niters_gan', type=int, default=0)
     parser.add_argument('--save_niters_freq', type=int, default=2000, help='frequency of saving checkpoints')
     parser.add_argument('--lr_g_gan', type=float, default=2e-4, help='learning rate for generator')
-    parser.add_argument('--lr_d_gan', type=float, default=1e-4, help='learning rate for discriminator')
+    parser.add_argument('--lr_d_gan', type=float, default=2e-4, help='learning rate for discriminator')
     parser.add_argument('--dim_gan', type=int, default=128, help='Latent dimension of GAN')
     parser.add_argument('--batch_size_disc', type=int, default=56)
     parser.add_argument('--batch_size_gene', type=int, default=56)

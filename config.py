@@ -55,7 +55,7 @@ dim_embed = 64
 #Paper Configuration:
 LAMBDA_SURFACE = 1.0 #(author's code used 0.1)
 LAMBDA_TEXTURE = 10 #(author's code used 1)
-LAMBDA_STRUCTURE = 2000 #(author's code used 200)
+LAMBDA_STRUCTURE = 1000 #(author's code used 200)
 LAMBDA_CONTENT = 2000 #(author's code used 200)
 LAMBDA_VARIATION = 10000
 #=============================
