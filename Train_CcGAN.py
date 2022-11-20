@@ -103,12 +103,13 @@ def train_CcGAN(kernel_sigma, kappa, photos, train_cartoons, train_labels, gen, 
         checkpoint = torch.load(save_file, map_location=torch.device(config.DEVICE))
         gen.load_state_dict(checkpoint['gen_state_dict'])
         disc_surface.load_state_dict(checkpoint['disc_surface_state_dict'])
+        disc_texture.load_state_dict(checkpoint['disc_texture_state_dict'])
         optimizerG.load_state_dict(checkpoint['optimizerG_state_dict'])
         print("load generator from", save_file)
         optimizerD.load_state_dict(checkpoint['optimizerD_state_dict'])
         print("load discriminator from", save_file)
         
-        torch.set_rng_state(checkpoint['rng_state'])
+        # torch.set_rng_state(checkpoint['rng_state'])
     elif os.path.isfile(save_models_folder + "/CcGAN_pretrained_gen.pth"):
         save_file = save_models_folder + "/CcGAN_pretrained_gen.pth"
         checkpoint = torch.load(save_file)
@@ -122,6 +123,7 @@ def train_CcGAN(kernel_sigma, kappa, photos, train_cartoons, train_labels, gen, 
         torch.save({
             'gen_state_dict': gen.state_dict(),
             'disc_surface_state_dict': disc_surface.state_dict(),
+            'disc_texture_state_dict': disc_texture.state_dict(),
             'optimizerG_state_dict': optimizerG.state_dict(),
             'optimizerD_state_dict': optimizerD.state_dict(),
             'rng_state': torch.get_rng_state()
